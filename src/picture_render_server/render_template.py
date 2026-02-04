@@ -101,11 +101,12 @@ async def render_single_cost_pic(single_cost_data: dict):
     """
     PictureRender.check_tmp_dir()
 
-    # API 应返回 item_name/item_name_cn/item_icon_url；若缺失则回退为 type_id 字符串
+    # API 应返回 item_name/item_name_cn；若缺失则回退为 type_id 字符串
     item_id = single_cost_data.get("type_id")
     item_name = single_cost_data.get("item_name") or str(item_id or "")
     item_name_cn = single_cost_data.get("item_name_cn") or item_name
-    item_icon_url = single_cost_data.get("item_icon_url")  # 期望为 base64；若缺失则模板走默认图标
+    user_name = single_cost_data.get("user_name")
+    plan_name = single_cost_data.get("plan_name")
 
     # 成本与 JITA 价格
     cost = single_cost_data.get("total_cost", 0)
@@ -150,7 +151,8 @@ async def render_single_cost_pic(single_cost_data: dict):
             item_name=item_name,
             item_name_cn=item_name_cn,
             item_id=item_id,
-            item_icon_url=item_icon_url,
+            user_name=user_name,
+            plan_name=plan_name,
             jita_buy=jita_buy,
             jita_mid=jita_mid,
             jita_sell=jita_sell,

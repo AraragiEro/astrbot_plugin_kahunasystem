@@ -90,7 +90,7 @@ class Event():
                 api_url = f"http://{Event.config['kahunasystem_host']}/api/astrbot/market/type_cost"
                 payload = {
                     "type_name": type_name,
-                    "username": username or Event.config['cost_username'],
+                    "user_name": username or Event.config['cost_username'],
                     "plan_name": plan_name or Event.config['cost_plan']
                 }
                 try:
