@@ -1,0 +1,6 @@
+{
+    "kahunasystem_host": {
+      "description": "kahunasystem host",
+      "type": "string"
+    }
+  }
