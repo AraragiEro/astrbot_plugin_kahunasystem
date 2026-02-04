@@ -80,7 +80,7 @@ class Event():
         return event.chain_result(chain)
 
     @staticmethod
-    async def costdetail(event: AstrMessageEvent, product: str):
+    async def costdetail(event: AstrMessageEvent, product: str, username: str = None, plan_name: str = None):
         if await try_acquire_lock(calculate_lock, 1):
             try:
                 type_name = product
@@ -88,7 +88,11 @@ class Event():
                     return event.plain_result("未提供物品名称。")
 
                 api_url = f"http://{Event.config['kahunasystem_host']}/api/astrbot/market/type_cost"
-                payload = {"type_name": type_name}
+                payload = {
+                    "type_name": type_name,
+                    "username": username or Event.config['cost_username'],
+                    "plan_name": plan_name or Event.config['cost_plan']
+                }
                 try:
                     async with aiohttp.ClientSession() as session:
                         async with session.post(api_url, json=payload, timeout=aiohttp.ClientTimeout(total=15)) as resp:

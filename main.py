@@ -33,9 +33,9 @@ class MyPlugin(Star):
         yield await Event.oprice(event, require_str)
 
     @filter.command("成本", alias={"cost"})
-    async def costdetail(self, event: AstrMessageEvent, product: str):
+    async def costdetail(self, event: AstrMessageEvent, product: str, username: str = None, plan_name: str = None):
         ''' 这是一个查询成本详情的插件 '''
-        yield await Event.costdetail(event, product)
+        yield await Event.costdetail(event, product, username, plan_name)
 
 
     async def terminate(self):
