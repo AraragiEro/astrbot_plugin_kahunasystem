@@ -2,5 +2,13 @@
     "kahunasystem_host": {
       "description": "kahunasystem host",
       "type": "string"
+    },
+    "cost_username": {
+      "description": "cost username",
+      "type": "string"
+    },
+    "cost_plan": {
+      "description": "cost plan",
+      "type": "string"
     }
   }
