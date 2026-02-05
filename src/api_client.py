@@ -32,7 +32,7 @@ async def api_type_cost(host: str, type_name: str, user_name: str, plan_name: st
             "user_name": user_name,
             "plan_name": plan_name,
         },
-        timeout=15,
+        timeout=120,
     )
 
 
