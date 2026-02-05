@@ -3,10 +3,10 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api.message_components import Image
 from astrbot.core.message.components import Plain
 from astrbot.core import logger
-import aiohttp
 import asyncio
 
 from .picture_render_server.render_template import render_price_res_pic, render_single_cost_pic
+from .api_client import api_price_detail, api_type_cost
 
 calculate_lock = asyncio.Lock()
 async def try_acquire_lock(lock, timeout=0.01):
@@ -31,16 +31,15 @@ class Event():
             quantity = 1
 
         # 从本地 API 获取价格与历史数据
-        api_url = f"http://{Event.config['kahunasystem_host']}/api/astrbot/market/price_detail"
-        payload = {"type_name": item_name}
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(api_url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                    if resp.status != 200:
-                        return event.plain_result(f"价格接口请求失败: HTTP {resp.status}")
-                    res_json = await resp.json()
+            res_json = await api_price_detail(
+                Event.config["kahunasystem_host"],
+                item_name,
+            )
         except Exception as e:
             logger.error(f"价格接口请求异常: {e}")
+            if isinstance(e, ValueError):
+                return event.plain_result(f"价格接口请求失败: {e}")
             return event.plain_result("价格接口请求异常，请稍后再试。")
 
         is_price = res_json.get("is_price", False)
@@ -88,20 +87,19 @@ class Event():
                 if not type_name:
                     return event.plain_result("未提供物品名称。")
 
-                api_url = f"http://{Event.config['kahunasystem_host']}/api/astrbot/market/type_cost"
-                payload = {
-                    "type_name": type_name,
-                    "user_name": username or Event.config['cost_username'],
-                    "plan_name": plan_name or Event.config['cost_plan']
-                }
+                user_name = username or Event.config['cost_username']
+                plan = plan_name or Event.config['cost_plan']
                 try:
-                    async with aiohttp.ClientSession() as session:
-                        async with session.post(api_url, json=payload, timeout=aiohttp.ClientTimeout(total=15)) as resp:
-                            if resp.status != 200:
-                                return event.plain_result(f"成本接口请求失败: HTTP {resp.status}")
-                            res_json = await resp.json()
+                    res_json = await api_type_cost(
+                        Event.config["kahunasystem_host"],
+                        type_name,
+                        user_name,
+                        plan,
+                    )
                 except Exception as e:
                     logger.error(f"成本接口请求异常: {e}")
+                    if isinstance(e, ValueError):
+                        return event.plain_result(f"成本接口请求失败: {e}")
                     return event.plain_result("成本接口请求异常，请稍后再试。")
 
                 if not res_json.get("is_cost", False):
