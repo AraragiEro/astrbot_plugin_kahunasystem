@@ -50,7 +50,7 @@ class EvePriceData(FunctionTool[AstrAgentContext]):
 @dataclass
 class EveCostData(FunctionTool[AstrAgentContext]):
     name: str = "eve_cost_data"  # 工具名称
-    description: str = "一个工具可以获取eve online中物品的成本数据，包括当前成本，当前买卖订单前五，历史365天的数据."  # 工具描述
+    description: str = "一个工具可以获取eve online中物品的成本数据，如果需要计算利润，则使用该工具获取成本，在使用eve_price_data获取价格."  # 工具描述
     parameters: dict = Field(
         default_factory=lambda: {
             "type": "object",
