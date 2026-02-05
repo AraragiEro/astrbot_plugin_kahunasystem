@@ -1,3 +1,5 @@
+import json
+
 from pydantic import Field
 from pydantic.dataclasses import dataclass
 
@@ -8,6 +10,16 @@ from astrbot.core.astr_agent_context import AstrAgentContext
 from ..api_client import api_fuzz_type_name, api_price_detail, api_type_cost
 
 from ..event import Event
+
+
+def _error(message: str) -> ToolExecResult:
+    return f"error: {message}"
+
+
+def _json_result(data) -> ToolExecResult:
+    return json.dumps(data, ensure_ascii=False)
+
+
 @dataclass
 class EvePriceData(FunctionTool[AstrAgentContext]):
     name: str = "eve_price_data"  # 工具名称
@@ -29,10 +41,10 @@ class EvePriceData(FunctionTool[AstrAgentContext]):
         self, context: ContextWrapper[AstrAgentContext], **kwargs
     ) -> ToolExecResult:
         if "type_name" not in kwargs:
-            return ToolExecResult(success=False, error="type_name is required")
+            return _error("type_name is required")
         type_name = kwargs["type_name"]
         if not type_name:
-            return ToolExecResult(success=False, error="type_name is required")
+            return _error("type_name is required")
 
         try:
             res_json = await api_price_detail(
@@ -40,12 +52,13 @@ class EvePriceData(FunctionTool[AstrAgentContext]):
                 type_name,
             )
         except Exception as e:
-            return ToolExecResult(success=False, error=f"价格接口请求失败: {e}")
+            return _error(f"价格接口请求失败: {e}")
         if not res_json.get("is_price", False):
-            return ToolExecResult(success=False, error=f"物品 {type_name} 未找到。")
+            return _error(f"物品 {type_name} 未找到。")
         data = res_json.get("data", {}) or {}
-        
-        return data
+
+        return _json_result(data)
+
 
 @dataclass
 class EveCostData(FunctionTool[AstrAgentContext]):
@@ -68,12 +81,12 @@ class EveCostData(FunctionTool[AstrAgentContext]):
         self, context: ContextWrapper[AstrAgentContext], **kwargs
     ) -> ToolExecResult:
         if "type_name" not in kwargs:
-            return ToolExecResult(success=False, error="type_name is required")
+            return _error("type_name is required")
         type_name = kwargs["type_name"]
         if not type_name:
-            return ToolExecResult(success=False, error="type_name is required")
-        username =  Event.config['cost_username']
-        plan_name = Event.config['cost_plan']
+            return _error("type_name is required")
+        username = Event.config["cost_username"]
+        plan_name = Event.config["cost_plan"]
         try:
             res_json = await api_type_cost(
                 Event.config["kahunasystem_host"],
@@ -82,11 +95,11 @@ class EveCostData(FunctionTool[AstrAgentContext]):
                 plan_name,
             )
         except Exception as e:
-            return ToolExecResult(success=False, error=f"成本接口请求失败: {e}")
+            return _error(f"成本接口请求失败: {e}")
         if not res_json.get("is_cost", False):
-            return ToolExecResult(success=False, error=f"物品 {type_name} 未找到成本数据。")
+            return _error(f"物品 {type_name} 未找到成本数据。")
         data = res_json.get("data", {}) or {}
-        return data
+        return _json_result(data)
 
 
 @dataclass
@@ -112,10 +125,10 @@ class EveFuzzTypeName(FunctionTool[AstrAgentContext]):
         self, context: ContextWrapper[AstrAgentContext], **kwargs
     ) -> ToolExecResult:
         if "type_name" not in kwargs:
-            return ToolExecResult(success=False, error="type_name is required")
+            return _error("type_name is required")
         type_name = kwargs["type_name"]
         if not type_name:
-            return ToolExecResult(success=False, error="type_name is required")
+            return _error("type_name is required")
 
         try:
             res_json = await api_fuzz_type_name(
@@ -123,11 +136,9 @@ class EveFuzzTypeName(FunctionTool[AstrAgentContext]):
                 type_name,
             )
         except Exception as e:
-            return ToolExecResult(
-                success=False, error=f"fuzz type name api request failed: {e}"
-            )
+            return _error(f"fuzz type name api request failed: {e}")
         if res_json.get("status") != 200:
             message = res_json.get("message", "fuzz type name api failed")
-            return ToolExecResult(success=False, error=message)
+            return _error(message)
         data = res_json.get("data", []) or []
-        return data
+        return _json_result(data)
