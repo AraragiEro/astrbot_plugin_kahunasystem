@@ -5,7 +5,7 @@ from astrbot.core.agent.run_context import ContextWrapper
 from astrbot.core.agent.tool import FunctionTool, ToolExecResult
 from astrbot.core.astr_agent_context import AstrAgentContext
 
-from ..api_client import api_price_detail, api_type_cost
+from ..api_client import api_fuzz_type_name, api_price_detail, api_type_cost
 
 from ..event import Event
 @dataclass
@@ -86,4 +86,48 @@ class EveCostData(FunctionTool[AstrAgentContext]):
         if not res_json.get("is_cost", False):
             return ToolExecResult(success=False, error=f"物品 {type_name} 未找到成本数据。")
         data = res_json.get("data", {}) or {}
+        return data
+
+
+@dataclass
+class EveFuzzTypeName(FunctionTool[AstrAgentContext]):
+    name: str = "eve_fuzz_type_name"
+    description: str = (
+        "Fuzzy match type name and return a list of candidates with confidence scores."
+    )
+    parameters: dict = Field(
+        default_factory=lambda: {
+            "type": "object",
+            "properties": {
+                "type_name": {
+                    "type": "string",
+                    "description": "Type name to search",
+                }
+            },
+            "required": ["type_name"],
+        }
+    )
+
+    async def call(
+        self, context: ContextWrapper[AstrAgentContext], **kwargs
+    ) -> ToolExecResult:
+        if "type_name" not in kwargs:
+            return ToolExecResult(success=False, error="type_name is required")
+        type_name = kwargs["type_name"]
+        if not type_name:
+            return ToolExecResult(success=False, error="type_name is required")
+
+        try:
+            res_json = await api_fuzz_type_name(
+                Event.config["kahunasystem_host"],
+                type_name,
+            )
+        except Exception as e:
+            return ToolExecResult(
+                success=False, error=f"fuzz type name api request failed: {e}"
+            )
+        if res_json.get("status") != 200:
+            message = res_json.get("message", "fuzz type name api failed")
+            return ToolExecResult(success=False, error=message)
+        data = res_json.get("data", []) or []
         return data

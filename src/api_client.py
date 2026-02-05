@@ -34,3 +34,12 @@ async def api_type_cost(host: str, type_name: str, user_name: str, plan_name: st
         },
         timeout=15,
     )
+
+
+async def api_fuzz_type_name(host: str, type_name: str):
+    return await post_json(
+        host,
+        "/api/astrbot/market/fuzz_type_name",
+        {"type_name": type_name},
+        timeout=10,
+    )
