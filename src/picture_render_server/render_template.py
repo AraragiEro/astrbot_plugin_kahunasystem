@@ -63,7 +63,7 @@ async def render_price_res_pic(item_data: dict, history_data: list, order_data: 
             item_image_base64 = None
 
         env.filters['format_number'] = format_number
-        # 鍋囷?/order_data 为 API 返回的订单数据
+        # API 返回字段为 orderdata，此处已由上层转换为 order_data 变量
         order_data = order_data or {"buy_order": {}, "sell_order": {}}
         buy_orders = [[k, v] for k, v in order_data.get('buy_order', {}).items()]
         buy_orders.sort(key=lambda x: x[1]['price'], reverse=True)

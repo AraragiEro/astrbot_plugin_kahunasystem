@@ -56,7 +56,8 @@ class Event():
         data = res_json.get("data", {}) or {}
         history_data = data.get("history_data", []) or []
         chart_history_data = [[row[0], row[1]] for row in history_data]
-        order_data = data.get("order_data") or {"buy_order": {}, "sell_order": {}}
+        # 统一使用后端字段名：orderdata
+        order_data = data.get("orderdata") or {"buy_order": {}, "sell_order": {}}
 
         quantity_str = ''
 
