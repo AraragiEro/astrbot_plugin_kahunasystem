@@ -3,7 +3,7 @@ name: kahunasystem
 description: EVE online相关的工具
 - 物品名匹配
 - 价格查找，成本计算
-- 市场即数据分析
+- 市场,数据分析,生产推荐
 ---
 
 当要查询某个物品价格时
