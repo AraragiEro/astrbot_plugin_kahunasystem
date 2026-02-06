@@ -10,5 +10,9 @@
     "cost_plan": {
       "description": "cost plan",
       "type": "string"
+    },
+    "bind_allow_group_ids": {
+      "description": "comma-separated group ids that allow .绑定kahunasystem",
+      "type": "string"
     }
   }

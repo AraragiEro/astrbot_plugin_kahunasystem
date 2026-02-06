@@ -6,7 +6,7 @@ from astrbot.core import logger
 import asyncio
 
 from .picture_render_server.render_template import render_price_res_pic, render_single_cost_pic
-from .api_client import api_price_detail, api_type_cost
+from .api_client import api_price_detail, api_type_cost, api_qq_bind
 
 calculate_lock = asyncio.Lock()
 async def try_acquire_lock(lock, timeout=0.01):
@@ -16,6 +16,16 @@ async def try_acquire_lock(lock, timeout=0.01):
         return True
     except asyncio.TimeoutError:
         return False
+
+
+def parse_allow_group_ids(raw_value):
+    if not raw_value:
+        return set()
+    if isinstance(raw_value, (list, tuple, set)):
+        return {str(item).strip() for item in raw_value if str(item).strip()}
+    if isinstance(raw_value, str):
+        return {item.strip() for item in raw_value.replace("，", ",").split(",") if item.strip()}
+    return set()
 
 class Event():
     config = None
@@ -116,3 +126,34 @@ class Event():
                 calculate_lock.release()
         else:
             return event.plain_result("已有成本计算进行中，请稍候再试。")
+
+    @staticmethod
+    async def bind_kahunasystem(event: AstrMessageEvent, uuid: str):
+        if not uuid:
+            return event.plain_result("格式错误，缺少 uuid。")
+
+        # group_id = event.get_group_id()
+        # allow_groups = parse_allow_group_ids(Event.config.get("bind_allow_group_ids"))
+        # if group_id is not None and str(group_id) not in allow_groups:
+        #     return event.plain_result("该指令仅限私聊或指定群使用。")
+
+        qq = event.get_sender_id()
+        try:
+            res_json = await api_qq_bind(
+                Event.config["kahunasystem_host"],
+                qq,
+                uuid,
+            )
+        except Exception as e:
+            logger.error(f"绑定回调请求异常: {e}")
+            return event.plain_result("绑定失败，请稍后再试。")
+
+        status = res_json.get("status")
+        try:
+            status = int(status)
+        except Exception:
+            status = None
+        if status and status >= 400:
+            return event.plain_result(res_json.get("message") or "绑定失败。")
+
+        return event.plain_result("绑定成功")

@@ -43,5 +43,12 @@ class MyPlugin(Star):
         ''' 这是一个查询成本详情的插件 '''
         yield await Event.costdetail(event, product, username, plan_name)
 
+    @filter.command("绑定kahunasystem")
+    async def bind_kahunasystem(self, event: AstrMessageEvent):
+        message_str = event.get_message_str().strip()
+        parts = message_str.split()
+        uuid = parts[1] if len(parts) >= 2 else None
+        yield await Event.bind_kahunasystem(event, uuid)
+
     async def terminate(self):
         """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""

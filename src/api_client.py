@@ -78,3 +78,22 @@ async def api_fuzz_type_name(host: str, type_name: str):
         "market_fuzz_type_name",
         {"type_name": type_name},
     )
+
+
+async def api_qq_bind(host: str, qq, uuid: str):
+    api_url = f"http://{host}/api/astrbot/kahunasystem/qq/bind"
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            api_url,
+            json={"QQ": qq, "uuid": uuid},
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as resp:
+            data = None
+            try:
+                data = await resp.json()
+            except Exception:
+                data = {}
+            if not isinstance(data, dict):
+                data = {}
+            data.setdefault("status", resp.status)
+            return data
