@@ -50,5 +50,15 @@ class MyPlugin(Star):
         uuid = parts[1] if len(parts) >= 2 else None
         yield await Event.bind_kahunasystem(event, uuid)
 
+    @filter.command("ssid")
+    async def ssid(self, event: AstrMessageEvent):
+        yield event.plain_result(f"你的session id是: {event.get_session_id()}")
+
     async def terminate(self):
         """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
+
+    @filter.llm_tool(name="get_qq")
+    async def get_qq(self, event: AstrMessageEvent) -> MessageEventResult:
+        """获取发送者的QQ号
+        """
+        return str(event.get_sender_id())

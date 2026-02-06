@@ -97,3 +97,22 @@ async def api_qq_bind(host: str, qq, uuid: str):
                 data = {}
             data.setdefault("status", resp.status)
             return data
+
+
+async def api_qq_vip_state(host: str, qq):
+    api_url = f"http://{host}/api/astrbot/kahunasystem/qq/vip"
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            api_url,
+            json={"QQ": qq},
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as resp:
+            data = None
+            try:
+                data = await resp.json()
+            except Exception:
+                data = {}
+            if not isinstance(data, dict):
+                data = {}
+            data.setdefault("status", resp.status)
+            return data

@@ -6,7 +6,6 @@ from pydantic.dataclasses import dataclass
 from astrbot.core.agent.run_context import ContextWrapper
 from astrbot.core.agent.tool import FunctionTool, ToolExecResult
 from astrbot.core.astr_agent_context import AstrAgentContext
-
 from ..api_client import api_info, api_list, api_run
 from ..event import Event
 
@@ -17,7 +16,6 @@ def _error(message: str) -> ToolExecResult:
 
 def _json_result(data) -> ToolExecResult:
     return json.dumps(data, ensure_ascii=False)
-
 
 @dataclass
 class ApiListTool(FunctionTool[AstrAgentContext]):
