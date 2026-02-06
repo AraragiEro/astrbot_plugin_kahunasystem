@@ -1,6 +1,18 @@
 import aiohttp
 
 
+async def get_json(host: str, path: str, timeout: int):
+    api_url = f"http://{host}{path}"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(
+            api_url,
+            timeout=aiohttp.ClientTimeout(total=timeout),
+        ) as resp:
+            if resp.status != 200:
+                raise ValueError(f"HTTP {resp.status}")
+            return await resp.json()
+
+
 async def post_json(host: str, path: str, payload: dict, timeout: int):
     api_url = f"http://{host}{path}"
     async with aiohttp.ClientSession() as session:
@@ -14,32 +26,55 @@ async def post_json(host: str, path: str, payload: dict, timeout: int):
             return await resp.json()
 
 
-async def api_price_detail(host: str, type_name: str):
-    return await post_json(
+async def api_list(host: str):
+    return await get_json(
         host,
-        "/api/astrbot/market/price_detail",
-        {"type_name": type_name},
+        "/api/astrbot/kahunasystem/api/list",
         timeout=10,
     )
 
 
-async def api_type_cost(host: str, type_name: str, user_name: str, plan_name: str):
+async def api_info(host: str, api_ids: list[str]):
     return await post_json(
         host,
-        "/api/astrbot/market/type_cost",
+        "/api/astrbot/kahunasystem/api/info",
+        {"args": api_ids},
+        timeout=10,
+    )
+
+
+async def api_run(host: str, api_id: str, args: dict):
+    return await post_json(
+        host,
+        "/api/astrbot/kahunasystem/api/run",
+        {"api_id": api_id, "args": args},
+        timeout=120,
+    )
+
+
+async def api_price_detail(host: str, type_name: str):
+    return await api_run(
+        host,
+        "market_price_detail",
+        {"type_name": type_name},
+    )
+
+
+async def api_type_cost(host: str, type_name: str, user_name: str, plan_name: str):
+    return await api_run(
+        host,
+        "market_type_cost",
         {
             "type_name": type_name,
             "user_name": user_name,
             "plan_name": plan_name,
         },
-        timeout=120,
     )
 
 
 async def api_fuzz_type_name(host: str, type_name: str):
-    return await post_json(
+    return await api_run(
         host,
-        "/api/astrbot/market/fuzz_type_name",
+        "market_fuzz_type_name",
         {"type_name": type_name},
-        timeout=10,
     )

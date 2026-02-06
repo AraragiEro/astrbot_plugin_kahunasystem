@@ -7,8 +7,7 @@ from astrbot.core.agent.run_context import ContextWrapper
 from astrbot.core.agent.tool import FunctionTool, ToolExecResult
 from astrbot.core.astr_agent_context import AstrAgentContext
 
-from ..api_client import api_fuzz_type_name, api_price_detail, api_type_cost
-
+from ..api_client import api_info, api_list, api_run
 from ..event import Event
 
 
@@ -21,124 +20,103 @@ def _json_result(data) -> ToolExecResult:
 
 
 @dataclass
-class EvePriceData(FunctionTool[AstrAgentContext]):
-    name: str = "eve_price_data"  # 工具名称
-    description: str = "一个工具可以获取eve online中物品的jita价格数据，包括当前价格，当前买卖订单前五，历史365天的数据."  # 工具描述
+class ApiListTool(FunctionTool[AstrAgentContext]):
+    name: str = "kahunasystem_apilist"
+    description: str = "列出kahunasystem可用的 API 条目。"
     parameters: dict = Field(
         default_factory=lambda: {
             "type": "object",
-            "properties": {
-                "type_name": {
-                    "type": "string",
-                    "description": "物品名称，如：wyvern",
-                },
-            },
-            "required": ["type_name"],
+            "properties": {},
+            "required": [],
         }
     )
 
     async def call(
         self, context: ContextWrapper[AstrAgentContext], **kwargs
     ) -> ToolExecResult:
-        if "type_name" not in kwargs:
-            return _error("type_name is required")
-        type_name = kwargs["type_name"]
-        if not type_name:
-            return _error("type_name is required")
-
         try:
-            res_json = await api_price_detail(
-                Event.config["kahunasystem_host"],
-                type_name,
-            )
+            res_json = await api_list(Event.config["kahunasystem_host"])
         except Exception as e:
-            return _error(f"价格接口请求失败: {e}")
-        if not res_json.get("is_price", False):
-            return _error(f"物品 {type_name} 未找到。")
-        data = res_json.get("data", {}) or {}
-
-        return _json_result(data)
-
-
-@dataclass
-class EveCostData(FunctionTool[AstrAgentContext]):
-    name: str = "eve_cost_data"  # 工具名称
-    description: str = "一个工具可以获取eve online中物品的成本数据，如果需要计算利润，则使用该工具获取成本，在使用eve_price_data获取价格."  # 工具描述
-    parameters: dict = Field(
-        default_factory=lambda: {
-            "type": "object",
-            "properties": {
-                "type_name": {
-                    "type": "string",
-                    "description": "物品名称，如：wyvern",
-                }
-            },
-            "required": ["type_name"],
-        }
-    )
-
-    async def call(
-        self, context: ContextWrapper[AstrAgentContext], **kwargs
-    ) -> ToolExecResult:
-        if "type_name" not in kwargs:
-            return _error("type_name is required")
-        type_name = kwargs["type_name"]
-        if not type_name:
-            return _error("type_name is required")
-        username = Event.config["cost_username"]
-        plan_name = Event.config["cost_plan"]
-        try:
-            res_json = await api_type_cost(
-                Event.config["kahunasystem_host"],
-                type_name,
-                username,
-                plan_name,
-            )
-        except Exception as e:
-            return _error(f"成本接口请求失败: {e}")
-        if not res_json.get("is_cost", False):
-            return _error(f"物品 {type_name} 未找到成本数据。")
-        data = res_json.get("data", {}) or {}
-        return _json_result(data)
-
-
-@dataclass
-class EveFuzzTypeName(FunctionTool[AstrAgentContext]):
-    name: str = "eve_fuzz_type_name"
-    description: str = (
-        "Fuzzy match type name and return a list of candidates with confidence scores."
-    )
-    parameters: dict = Field(
-        default_factory=lambda: {
-            "type": "object",
-            "properties": {
-                "type_name": {
-                    "type": "string",
-                    "description": "Type name to search",
-                }
-            },
-            "required": ["type_name"],
-        }
-    )
-
-    async def call(
-        self, context: ContextWrapper[AstrAgentContext], **kwargs
-    ) -> ToolExecResult:
-        if "type_name" not in kwargs:
-            return _error("type_name is required")
-        type_name = kwargs["type_name"]
-        if not type_name:
-            return _error("type_name is required")
-
-        try:
-            res_json = await api_fuzz_type_name(
-                Event.config["kahunasystem_host"],
-                type_name,
-            )
-        except Exception as e:
-            return _error(f"fuzz type name api request failed: {e}")
+            return _error(f"api list request failed: {e}")
         if res_json.get("status") != 200:
-            message = res_json.get("message", "fuzz type name api failed")
+            message = res_json.get("message", "api list failed")
             return _error(message)
         data = res_json.get("data", []) or []
         return _json_result(data)
+
+
+@dataclass
+class ApiInfoTool(FunctionTool[AstrAgentContext]):
+    name: str = "kahunasystem_apiinfo"
+    description: str = "根据 API id 获取 API 详情。"
+    parameters: dict = Field(
+        default_factory=lambda: {
+            "type": "object",
+            "properties": {
+                "api_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "API id list",
+                }
+            },
+            "required": ["api_ids"],
+        }
+    )
+
+    async def call(
+        self, context: ContextWrapper[AstrAgentContext], **kwargs
+    ) -> ToolExecResult:
+        api_ids = kwargs.get("api_ids")
+        if not isinstance(api_ids, list) or not api_ids:
+            return _error("api_ids must be a non-empty list")
+
+        try:
+            res_json = await api_info(Event.config["kahunasystem_host"], api_ids)
+        except Exception as e:
+            return _error(f"api info request failed: {e}")
+        if res_json.get("status") != 200:
+            message = res_json.get("message", "api info failed")
+            return _error(message)
+        data = res_json.get("data", []) or []
+        return _json_result(data)
+
+
+@dataclass
+class ApiRunTool(FunctionTool[AstrAgentContext]):
+    name: str = "kahunasystem_apirun"
+    description: str = "根据 API id 运行 API。"
+    parameters: dict = Field(
+        default_factory=lambda: {
+            "type": "object",
+            "properties": {
+                "api_id": {
+                    "type": "string",
+                    "description": "Target api id",
+                },
+                "args": {
+                    "type": "object",
+                    "description": "API args object",
+                },
+            },
+            "required": ["api_id"],
+        }
+    )
+
+    async def call(
+        self, context: ContextWrapper[AstrAgentContext], **kwargs
+    ) -> ToolExecResult:
+        api_id = kwargs.get("api_id")
+        if not api_id:
+            return _error("api_id is required")
+        args = kwargs.get("args") or {}
+        if not isinstance(args, dict):
+            return _error("args must be an object")
+
+        try:
+            res_json = await api_run(Event.config["kahunasystem_host"], api_id, args)
+        except Exception as e:
+            return _error(f"api run request failed: {e}")
+        if res_json.get("status") == 400:
+            message = res_json.get("message", "api run failed")
+            return _error(message)
+        return _json_result(res_json)

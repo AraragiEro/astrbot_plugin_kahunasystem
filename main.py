@@ -5,7 +5,7 @@ from astrbot.api import logger
 from .src.event import Event
 from astrbot.api import AstrBotConfig
 
-from .src.tools.eve_tools import EvePriceData, EveCostData, EveFuzzTypeName
+from .src.tools.eve_tools import ApiInfoTool, ApiListTool, ApiRunTool
 
 @register("helloworld", "YourName", "一个简单的 Hello World 插件", "1.0.0")
 class MyPlugin(Star):
@@ -15,9 +15,9 @@ class MyPlugin(Star):
         print(self.config)
         Event.config = self.config
 
-        self.context.add_llm_tools(EvePriceData())
-        self.context.add_llm_tools(EveCostData())
-        self.context.add_llm_tools(EveFuzzTypeName())
+        self.context.add_llm_tools(ApiListTool())
+        self.context.add_llm_tools(ApiInfoTool())
+        self.context.add_llm_tools(ApiRunTool())
 
     async def initialize(self):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
