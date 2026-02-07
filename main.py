@@ -5,7 +5,8 @@ from astrbot.api import logger
 from .src.event import Event
 from astrbot.api import AstrBotConfig
 
-from .src.tools.eve_tools import ApiInfoTool, ApiListTool, ApiRunTool
+from .src.tools.eve_tools import ApiInfoTool, ApiListTool, eve_error, eve_json_result
+from .src.api_client import api_run
 
 @register("helloworld", "YourName", "一个简单的 Hello World 插件", "1.0.0")
 class MyPlugin(Star):
@@ -17,7 +18,6 @@ class MyPlugin(Star):
 
         self.context.add_llm_tools(ApiListTool())
         self.context.add_llm_tools(ApiInfoTool())
-        self.context.add_llm_tools(ApiRunTool())
 
     async def initialize(self):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
@@ -57,8 +57,19 @@ class MyPlugin(Star):
     async def terminate(self):
         """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
 
-    @filter.llm_tool(name="get_qq")
-    async def get_qq(self, event: AstrMessageEvent) -> MessageEventResult:
-        """获取发送者的QQ号
+    @filter.llm_tool(name="kahunasystem_apirun")
+    async def kahunasystem_apirun(self, event: AstrMessageEvent, api_id: str, eve_args: dict) -> MessageEventResult:
+        """运行kahunasystem的API
+
+        Args:
+            api_id(string): Target api id
+            eve_args(object): API args object
         """
-        return str(event.get_sender_id())
+        try:
+            res_json = await api_run(self.config["kahunasystem_host"], api_id, eve_args, event.get_sender_id())
+        except Exception as e:
+            return eve_error(f"api run request failed: {e}")
+        if res_json.get("status") == 400:
+            message = res_json.get("message", "api run failed")
+            return eve_error(message)
+        return eve_json_result(res_json)

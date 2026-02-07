@@ -10,11 +10,11 @@ from ..api_client import api_info, api_list, api_run
 from ..event import Event
 
 
-def _error(message: str) -> ToolExecResult:
+def eve_error(message: str) -> ToolExecResult:
     return f"error: {message}"
 
 
-def _json_result(data) -> ToolExecResult:
+def eve_json_result(data) -> ToolExecResult:
     return json.dumps(data, ensure_ascii=False)
 
 @dataclass
@@ -35,12 +35,12 @@ class ApiListTool(FunctionTool[AstrAgentContext]):
         try:
             res_json = await api_list(Event.config["kahunasystem_host"])
         except Exception as e:
-            return _error(f"api list request failed: {e}")
+            return eve_error(f"api list request failed: {e}")
         if res_json.get("status") != 200:
             message = res_json.get("message", "api list failed")
-            return _error(message)
+            return eve_error(message)
         data = res_json.get("data", []) or []
-        return _json_result(data)
+        return eve_json_result(data)
 
 
 @dataclass
@@ -66,55 +66,55 @@ class ApiInfoTool(FunctionTool[AstrAgentContext]):
     ) -> ToolExecResult:
         api_ids = kwargs.get("api_ids")
         if not isinstance(api_ids, list) or not api_ids:
-            return _error("api_ids must be a non-empty list")
+            return eve_error("api_ids must be a non-empty list")
 
         try:
             res_json = await api_info(Event.config["kahunasystem_host"], api_ids)
         except Exception as e:
-            return _error(f"api info request failed: {e}")
+            return eve_error(f"api info request failed: {e}")
         if res_json.get("status") != 200:
             message = res_json.get("message", "api info failed")
-            return _error(message)
+            return eve_error(message)
         data = res_json.get("data", []) or []
-        return _json_result(data)
+        return eve_json_result(data)
 
 
-@dataclass
-class ApiRunTool(FunctionTool[AstrAgentContext]):
-    name: str = "kahunasystem_apirun"
-    description: str = "根据 API id 运行 API。"
-    parameters: dict = Field(
-        default_factory=lambda: {
-            "type": "object",
-            "properties": {
-                "api_id": {
-                    "type": "string",
-                    "description": "Target api id",
-                },
-                "args": {
-                    "type": "object",
-                    "description": "API args object",
-                },
-            },
-            "required": ["api_id"],
-        }
-    )
+# @dataclass
+# class ApiRunTool(FunctionTool[AstrAgentContext]):
+#     name: str = "kahunasystem_apirun"
+#     description: str = "根据 API id 运行 API。"
+#     parameters: dict = Field(
+#         default_factory=lambda: {
+#             "type": "object",
+#             "properties": {
+#                 "api_id": {
+#                     "type": "string",
+#                     "description": "Target api id",
+#                 },
+#                 "args": {
+#                     "type": "object",
+#                     "description": "API args object",
+#                 },
+#             },
+#             "required": ["api_id"],
+#         }
+#     )
 
-    async def call(
-        self, context: ContextWrapper[AstrAgentContext], **kwargs
-    ) -> ToolExecResult:
-        api_id = kwargs.get("api_id")
-        if not api_id:
-            return _error("api_id is required")
-        args = kwargs.get("args") or {}
-        if not isinstance(args, dict):
-            return _error("args must be an object")
+#     async def call(
+#         self, context: ContextWrapper[AstrAgentContext], **kwargs
+#     ) -> ToolExecResult:
+#         api_id = kwargs.get("api_id")
+#         if not api_id:
+#             return eve_error("api_id is required")
+#         args = kwargs.get("args") or {}
+#         if not isinstance(args, dict):
+#             return eve_error("args must be an object")
 
-        try:
-            res_json = await api_run(Event.config["kahunasystem_host"], api_id, args)
-        except Exception as e:
-            return _error(f"api run request failed: {e}")
-        if res_json.get("status") == 400:
-            message = res_json.get("message", "api run failed")
-            return _error(message)
-        return _json_result(res_json)
+#         try:
+#             res_json = await api_run(Event.config["kahunasystem_host"], api_id, args)
+#         except Exception as e:
+#             return eve_error(f"api run request failed: {e}")
+#         if res_json.get("status") == 400:
+#             message = res_json.get("message", "api run failed")
+#             return eve_error(message)
+#         return eve_json_result(res_json)

@@ -43,11 +43,11 @@ async def api_info(host: str, api_ids: list[str]):
     )
 
 
-async def api_run(host: str, api_id: str, args: dict):
+async def api_run(host: str, api_id: str, args: dict, qq: str = None):
     return await post_json(
         host,
         "/api/astrbot/kahunasystem/api/run",
-        {"api_id": api_id, "args": args},
+        {"api_id": api_id, "args": args, "qq": qq},
         timeout=120,
     )
 

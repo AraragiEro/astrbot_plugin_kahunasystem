@@ -14,5 +14,9 @@
     "bind_allow_group_ids": {
       "description": "comma-separated group ids that allow .绑定kahunasystem",
       "type": "string"
+    },
+    "vip_white_session_ids": {
+      "description": "跳过vip判断的session id列表",
+      "type": "list"
     }
   }
