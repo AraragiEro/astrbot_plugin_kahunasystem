@@ -58,15 +58,16 @@ class MyPlugin(Star):
         """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
 
     @filter.llm_tool(name="kahunasystem_apirun")
-    async def kahunasystem_apirun(self, event: AstrMessageEvent, api_id: str, eve_args: dict) -> MessageEventResult:
-        """运行kahunasystem的API, 调用前必须先调用kahunasystem_apiinfo确认必要的参数和返回结果
+    async def kahunasystem_apirun(self, event: AstrMessageEvent, api_id: str, access_token: str, eve_args: dict) -> MessageEventResult:
+        """运行kahunasystem的API, 
 
         Args:
             api_id(string): Target api id
+            access_token(string): Token for kahunasystem_apirun。get from kahunasystem_apiinfo.each token can only be used once.
             eve_args(object): API args object
         """
         try:
-            res_json = await api_run(self.config["kahunasystem_host"], api_id, eve_args, event.get_sender_id())
+            res_json = await api_run(self.config["kahunasystem_host"], api_id, eve_args, event.get_sender_id(), access_token)
         except Exception as e:
             return eve_error(f"api run request failed: {e}")
         if res_json.get("status") == 400:

@@ -38,20 +38,20 @@ async def api_list(host: str):
     )
 
 
-async def api_info(host: str, api_ids: list[str]):
+async def api_info(host: str, api_id: str):
     return await post_json(
         host,
         "/api/astrbot/kahunasystem/api/info",
-        {"args": api_ids},
+        {"args": api_id},
         timeout=10,
     )
 
 
-async def api_run(host: str, api_id: str, args: dict, qq: str = None):
+async def api_run(host: str, api_id: str, args: dict, qq: str = None, access_token: str = None):
     return await post_json(
         host,
         "/api/astrbot/kahunasystem/api/run",
-        {"api_id": api_id, "args": args, "qq": qq},
+        {"api_id": api_id, "args": args, "qq": qq, "access_token": access_token},
         timeout=120,
     )
 

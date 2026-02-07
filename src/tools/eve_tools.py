@@ -46,30 +46,29 @@ class ApiListTool(FunctionTool[AstrAgentContext]):
 @dataclass
 class ApiInfoTool(FunctionTool[AstrAgentContext]):
     name: str = "kahunasystem_apiinfo"
-    description: str = "根据 API id 获取 API 详情, 在使用kahunasystem_apirun前必须调用获取参数和返回案例，非常重要。"
+    description: str = "根据 API id 获取 API 详情, 并获取一个访问kahunasystem_apirun必须的access_token, access_token只能使用一次。重要：在使用kahunasystem_apirun前必须调用获取参数和返回案例，非常重要。"
     parameters: dict = Field(
         default_factory=lambda: {
             "type": "object",
             "properties": {
-                "api_ids": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "API id list",
+                "api_id": {
+                    "type": "string",
+                    "description": "Target api id",
                 }
             },
-            "required": ["api_ids"],
+            "required": ["api_id"],
         }
     )
 
     async def call(
         self, context: ContextWrapper[AstrAgentContext], **kwargs
     ) -> ToolExecResult:
-        api_ids = kwargs.get("api_ids")
-        if not isinstance(api_ids, list) or not api_ids:
-            return eve_error("api_ids must be a non-empty list")
+        api_id = kwargs.get("api_id")
+        if not api_id:
+            return eve_error("api_id is required")
 
         try:
-            res_json = await api_info(Event.config["kahunasystem_host"], api_ids)
+            res_json = await api_info(Event.config["kahunasystem_host"], api_id)
         except Exception as e:
             return eve_error(f"api info request failed: {e}")
         if res_json.get("status") != 200:
