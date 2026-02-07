@@ -59,7 +59,7 @@ class MyPlugin(Star):
 
     @filter.llm_tool(name="kahunasystem_apirun")
     async def kahunasystem_apirun(self, event: AstrMessageEvent, api_id: str, eve_args: dict) -> MessageEventResult:
-        """运行kahunasystem的API
+        """运行kahunasystem的API, 调用前必须先调用kahunasystem_apiinfo确认必要的参数和返回结果
 
         Args:
             api_id(string): Target api id
