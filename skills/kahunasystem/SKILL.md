@@ -6,6 +6,9 @@ description: EVE online相关的工具
 - 市场,数据分析,生产推荐
 ---
 
+**重要**
+使用kahunasystem_apirun前必须调用kahunasystem_apiinfo确认必要的参数
+
 当要查询某个物品价格时
 1. 通过api获取正确的typename，参数要使用用户的原始输入。
 2. 通过api获取价格

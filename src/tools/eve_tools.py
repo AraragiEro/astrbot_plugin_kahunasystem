@@ -46,7 +46,7 @@ class ApiListTool(FunctionTool[AstrAgentContext]):
 @dataclass
 class ApiInfoTool(FunctionTool[AstrAgentContext]):
     name: str = "kahunasystem_apiinfo"
-    description: str = "根据 API id 获取 API 详情。"
+    description: str = "根据 API id 获取 API 详情, 在使用kahunasystem_apirun前必须调用获取参数和返回案例，非常重要。"
     parameters: dict = Field(
         default_factory=lambda: {
             "type": "object",
