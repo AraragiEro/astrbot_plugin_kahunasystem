@@ -22,7 +22,7 @@ async def post_json(host: str, path: str, payload: dict, timeout: int):
             timeout=aiohttp.ClientTimeout(total=timeout),
         ) as resp:
             if resp.status != 200:
-                raise ValueError(f"HTTP {resp.status}")
+                raise ValueError(f"HTTP {resp.status}, message: {await resp.message}")
             return await resp.json()
 
 
