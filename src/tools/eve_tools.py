@@ -20,7 +20,7 @@ def eve_json_result(data) -> ToolExecResult:
 @dataclass
 class ApiListTool(FunctionTool[AstrAgentContext]):
     name: str = "kahunasystem_apilist"
-    description: str = "列出kahunasystem可用的 API 条目。"
+    description: str = "列出kahunasystem可用的 API 条目。重要：仅包含api_id和description信息。参数与返回的详细信息请使用kahunasystem_apiinfo确认。不可直接使用kahunasystem_apirun调用"
     parameters: dict = Field(
         default_factory=lambda: {
             "type": "object",
