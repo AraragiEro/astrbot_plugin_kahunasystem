@@ -347,11 +347,13 @@ class MyPlugin(Star):
 
     @filter.llm_tool(name="get_paps_status")
     async def get_paps_status(self, event: AstrMessageEvent, name: str = None) -> MessageEventResult:
-        """
-        工具说明（供 AI 调用）：
+        """工具说明（供 AI 调用）：
         根据角色名查询用户 PAP 状态与保底计数器状态。
         - 当未传 name 时，从发送者昵称提取角色名；
         - 昵称提取规则参考“医保查询”：若含 `/`，取最后一个 `/` 后半段。
+
+        Args:
+            name(string): 角色名, 
         """
         role_name = self._extract_role_name(name or event.get_sender_name())
         if not role_name:
