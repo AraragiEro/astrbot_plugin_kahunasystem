@@ -282,6 +282,7 @@ class MyPlugin(Star):
         - 用户说“获取抽奖结果”时，fetch_remote=true：从远端获取最新结果，并重置十连展示进度,此时不要输出结果，等待用户十连抽卡；
         - 用户说“十连抽卡”时，fetch_remote=false：按顺序返回下一组 10 连结果，根据结果使用雌小鬼语气讽刺用户或恭喜用户；
         - 当没有更多 10 连结果时，返回用户奖励汇总并提示抽奖已完成。
+        - 当用户说获取SSR结果时，fetch_remote=false：返回SSR结果，并根据结果使用雌小鬼语气讽刺用户或恭喜用户；
 
         Args:
             fetch_remote(boolean): 是否从远端获取最新结果
@@ -331,11 +332,24 @@ class MyPlugin(Star):
             except Exception as e:
                 return eve_error(f"update local cursor failed: {e}")
 
+            # 压缩10连返回字段，降低上下文消耗
+            compact_batch = []
+            for row in batch:
+                if not isinstance(row, dict):
+                    continue
+                compact_batch.append({
+                    "no": row.get("draw_no"),
+                    "name": row.get("name"),
+                    "type": row.get("result_type"),
+                    "reward": row.get("reward_name"),
+                    "rarity": row.get("rarity"),
+                })
+
             return eve_json_result({
                 "message": f"返回一组10连结果, 剩余{remaining}组",
                 "current_ten_draw_index": next_batch_index + 1,
                 "remaining_ten_draw_count": remaining,
-                "draw_results": batch,
+                "draw_results": compact_batch,
             })
 
         rewards_summary = self._build_rewards_summary(data)
