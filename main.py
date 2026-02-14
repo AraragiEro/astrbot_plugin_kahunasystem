@@ -285,6 +285,7 @@ class MyPlugin(Star):
         - 当用户说获取SSR结果时，fetch_remote=false：返回SSR结果，并根据结果使用雌小鬼语气讽刺用户或恭喜用户；
         - pity_before: SSR保底计数器前值
         - pity_after: SSR保底计数器后值
+        SSR权重是最终获取SSR奖品的概率，越高越好！
 
         Args:
             fetch_remote(boolean): 是否从远端获取最新结果
