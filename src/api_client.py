@@ -120,3 +120,75 @@ async def api_qq_vip_state(host: str, qq):
                 data = {}
             data.setdefault("status", resp.status)
             return data
+
+
+async def api_cj_set_active(host: str, active: bool):
+    return await post_json(
+        host,
+        "/api/astrbot/kahunasystem/choujiang/set_active",
+        {"active": active},
+        timeout=10,
+    )
+
+
+async def api_cj_init(host: str):
+    return await post_json(
+        host,
+        "/api/astrbot/kahunasystem/choujiang/init",
+        {},
+        timeout=20,
+    )
+
+
+async def api_cj_next_round(host: str):
+    return await post_json(
+        host,
+        "/api/astrbot/kahunasystem/choujiang/next_round",
+        {},
+        timeout=20,
+    )
+
+
+async def api_cj_run(host: str):
+    return await post_json(
+        host,
+        "/api/astrbot/kahunasystem/choujiang/run",
+        {},
+        timeout=120,
+    )
+
+
+async def api_cj_save_state(host: str):
+    return await post_json(
+        host,
+        "/api/astrbot/kahunasystem/choujiang/save_state",
+        {},
+        timeout=20,
+    )
+
+
+async def api_cj_set_user_paps_used(host: str, name: str, paps: int):
+    return await post_json(
+        host,
+        "/api/astrbot/kahunasystem/choujiang/set_user_paps_used",
+        {"name": name, "paps": paps},
+        timeout=20,
+    )
+
+
+async def api_cj_get_paps_status(host: str, name: str):
+    return await post_json(
+        host,
+        "/api/astrbot/kahunasystem/choujiang/get_paps_status",
+        {"name": name},
+        timeout=20,
+    )
+
+
+async def api_cj_get_tmp_result(host: str):
+    return await post_json(
+        host,
+        "/api/astrbot/kahunasystem/choujiang/get_tmp_result",
+        {},
+        timeout=20,
+    )

@@ -5,6 +5,7 @@ description: EVE online相关的工具
 - 价格查找，成本计算
 - 市场,数据分析,生产推荐
 - 蓝图缺失状态分析
+- 查询医保余额
 ---
 
 **重要**
@@ -34,3 +35,9 @@ description: EVE online相关的工具
 ## 当用户询问计划的蓝图状态、缺失蓝图数量、发明计划相关信息时
 1. 通过api获取信息
 2. 处理和输出规范 -> `references/skill_missing_blueprint_workflow_display.md`
+
+## 当用户在群内查询自己的医保额度时
+1. 通过api调用 `get_company_medica_vouchers` 获取公司医保额度清单。
+2. 从群昵称中提取角色名：优先取 `/` 后半段，例如 `SETCR-Jack/KomeijiKoishi514` 的角色名是 `KomeijiKoishi514`。
+3. 按角色名在医保额度清单中匹配对应额度。
+4. 输出规范 -> `references/skill_company_medica_vouchers_lookup.md`
