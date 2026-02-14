@@ -1,3 +1,4 @@
+import json
 import aiohttp
 
 
@@ -24,6 +25,12 @@ async def post_json(host: str, path: str, payload: dict, timeout: int):
             if resp.status != 200:
                 try:
                     body = await resp.text()
+                    # 后端若返回 JSON 字符串，转为中文可读格式，避免 \uXXXX 日志乱码
+                    try:
+                        body_json = json.loads(body)
+                        body = json.dumps(body_json, ensure_ascii=False)
+                    except Exception:
+                        pass
                 except Exception:
                     body = resp.reason
                 raise ValueError(f"HTTP {resp.status}, message: {body}")
