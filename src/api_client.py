@@ -199,3 +199,18 @@ async def api_cj_get_tmp_result(host: str):
         {},
         timeout=20,
     )
+
+async def api_get_reward(host: str):
+    return await post_json(
+        host,
+        "/api/astrbot/kahunasystem/choujiang/get_reward",
+        {},
+        timeout=20,
+    )
+
+async def api_cj_get_active_reward(host: str):
+    return await get_json(
+        host,
+        "/api/astrbot/kahunasystem/choujiang/get_active_reward",
+        timeout=20,
+    )

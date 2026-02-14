@@ -9,6 +9,8 @@ from .src.event import Event
 from .src.tools.eve_tools import ApiInfoTool, ApiListTool, eve_error, eve_json_result
 from .src.api_client import (
     api_run,
+    api_get_reward,
+    api_cj_get_active_reward,
     api_cj_get_paps_status,
     api_cj_get_tmp_result,
     api_cj_init,
@@ -383,4 +385,33 @@ class MyPlugin(Star):
             return eve_error(f"get_paps_status request failed: {e}")
         if res_json.get("status") != 200:
             return eve_error(self._format_api_error(res_json, "get_paps_status failed"))
+        return eve_json_result(res_json)
+
+    @filter.llm_tool(name="get_reward")
+    async def get_reward(self, event: AstrMessageEvent) -> MessageEventResult:
+        """获取奖品配置。
+
+        返回所有奖品列表与轮次区间信息。
+        """
+        try:
+            res_json = await api_get_reward(self.config["kahunasystem_host"])
+        except Exception as e:
+            return eve_error(f"get_reward request failed: {e}")
+        if res_json.get("status") != 200:
+            return eve_error(self._format_api_error(res_json, "get_reward failed"))
+        return eve_json_result(res_json)
+
+
+    @filter.llm_tool(name="get_active_reward")
+    async def get_active_reward(self, event: AstrMessageEvent) -> MessageEventResult:
+        """??????????????
+
+        ?????? round_id????? time??? rewards ???
+        """
+        try:
+            res_json = await api_cj_get_active_reward(self.config["kahunasystem_host"])
+        except Exception as e:
+            return eve_error(f"get_active_reward request failed: {e}")
+        if res_json.get("status") != 200:
+            return eve_error(self._format_api_error(res_json, "get_active_reward failed"))
         return eve_json_result(res_json)
