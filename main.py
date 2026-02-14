@@ -283,6 +283,8 @@ class MyPlugin(Star):
         - 用户说“十连抽卡”时，fetch_remote=false：按顺序返回下一组 10 连结果，根据结果使用雌小鬼语气讽刺用户或恭喜用户；
         - 当没有更多 10 连结果时，返回用户奖励汇总并提示抽奖已完成。
         - 当用户说获取SSR结果时，fetch_remote=false：返回SSR结果，并根据结果使用雌小鬼语气讽刺用户或恭喜用户；
+        - pity_before: SSR保底计数器前值
+        - pity_after: SSR保底计数器后值
 
         Args:
             fetch_remote(boolean): 是否从远端获取最新结果
@@ -343,6 +345,8 @@ class MyPlugin(Star):
                     "type": row.get("result_type"),
                     "reward": row.get("reward_name"),
                     "rarity": row.get("rarity"),
+                    "pity_before": row.get("pity_before"),
+                    "pity_after": row.get("pity_after"),
                 })
 
             return eve_json_result({
