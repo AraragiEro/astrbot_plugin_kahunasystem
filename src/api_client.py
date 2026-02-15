@@ -156,6 +156,15 @@ async def api_cj_next_round(host: str):
     )
 
 
+async def api_cj_set_round(host: str, round_id: int):
+    return await post_json(
+        host,
+        "/api/astrbot/kahunasystem/choujiang/set_round",
+        {"round_id": round_id},
+        timeout=20,
+    )
+
+
 async def api_cj_run(host: str):
     return await post_json(
         host,

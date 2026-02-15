@@ -18,6 +18,7 @@ from .src.api_client import (
     api_cj_run,
     api_cj_save_state,
     api_cj_set_active,
+    api_cj_set_round,
     api_cj_set_user_paps_used,
 )
 
@@ -50,6 +51,7 @@ class MyPlugin(Star):
             ".cj off 关闭抽奖录入（管理员）\n"
             ".cj run 执行抽奖结算（管理员）\n"
             ".cj next 切换到下一轮（管理员）\n"
+            ".cj set [id] 设定当前抽奖轮次（管理员）\n"
             ".cj save 保存抽奖状态（管理员）\n"
             ".cj paps [int] 录入本轮消耗 PAP（成员）"
         )
@@ -218,6 +220,35 @@ class MyPlugin(Star):
             yield event.plain_result(f"保存状态失败：{self._format_api_error(res_json, 'save_state 调用失败')}")
             return
         yield event.plain_result(res_json.get("message") or "抽奖状态保存成功。")
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @cj.command("set")
+    async def cj_set(self, event: AstrMessageEvent, round_id_value: str = None):
+        if round_id_value is None:
+            parts = (event.get_message_str() or "").strip().split()
+            round_id_value = parts[2] if len(parts) >= 3 else None
+        if not round_id_value:
+            yield event.plain_result("参数错误：缺少轮次编号。\n用法：.cj set [id]")
+            return
+        try:
+            round_id = int(round_id_value)
+        except Exception:
+            yield event.plain_result("参数错误：轮次编号必须是整数。\n用法：.cj set [id]")
+            return
+        if round_id <= 0:
+            yield event.plain_result("参数错误：轮次编号必须大于 0。\n用法：.cj set [id]")
+            return
+        try:
+            res_json = await api_cj_set_round(self.config["kahunasystem_host"], round_id)
+        except Exception as e:
+            logger.error(f"cj set 调用异常: {e}")
+            yield event.plain_result(f"设置轮次异常：{e}\n{self._cj_usage()}")
+            return
+        if res_json.get("status") != 200:
+            yield event.plain_result(f"设置轮次失败：{self._format_api_error(res_json, 'set_round 调用失败')}")
+            return
+        actual_round_id = (res_json.get("data") or {}).get("round_id", round_id)
+        yield event.plain_result(f"已设置当前抽奖轮次为：{actual_round_id}")
 
     @cj.command("help")
     async def cj_help(self, event: AstrMessageEvent):
