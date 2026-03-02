@@ -298,7 +298,13 @@ class MyPlugin(Star):
 
     @filter.llm_tool(name="kahunasystem_apirun")
     async def kahunasystem_apirun(self, event: AstrMessageEvent, api_id: str, access_token: str, eve_args: dict) -> MessageEventResult:
-        """运行 kahunasystem 的 API。"""
+        """运行 kahunasystem 的 API。
+        
+        Args:
+            api_id(string): API 编号
+            access_token(string): 访问令牌
+            eve_args(dict): 其他参数，传给后端 API
+        """
         try:
             res_json = await api_run(self.config["kahunasystem_host"], api_id, eve_args, event.get_sender_id(), access_token)
         except Exception as e:
