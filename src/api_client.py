@@ -59,7 +59,7 @@ async def api_run(host: str, api_id: str, args: dict, qq: str = None, access_tok
         host,
         "/api/astrbot/kahunasystem/api/run",
         {"api_id": api_id, "args": args, "qq": qq, "access_token": access_token},
-        timeout=120,
+        timeout=300,
     )
 
 
