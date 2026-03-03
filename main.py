@@ -306,6 +306,13 @@ class MyPlugin(Star):
             eve_args(dict): 其他参数，传给后端 API
         """
         try:
+            if api_id == "market_type_cost":
+                plan_name = self.config.get("cost_plan", None)
+                user_name = self.config.get("cost_username", None)
+                eve_args.update({
+                    "plan_name": plan_name,
+                    "user_name": user_name
+                })
             res_json = await api_run(self.config["kahunasystem_host"], api_id, eve_args, event.get_sender_id(), access_token)
         except Exception as e:
             return eve_error(f"api run request failed: {e}")
@@ -314,141 +321,141 @@ class MyPlugin(Star):
             return eve_error(message)
         return eve_json_result(res_json)
 
-    @filter.llm_tool(name="get_tmp_result")
-    async def get_tmp_result(self, event: AstrMessageEvent, fetch_remote: bool = False) -> MessageEventResult:
-        """工具说明（供 AI 调用）：
-        获取抽奖临时结果。
-        - 用户说“获取抽奖结果”时，fetch_remote=true：从远端获取最新结果，并重置十连展示进度,此时不要输出结果，等待用户十连抽卡；
-        - 用户说“十连抽卡”时，fetch_remote=false：按顺序返回下一组 10 连结果，根据结果使用雌小鬼语气讽刺用户或恭喜用户；
-        - 当没有更多 10 连结果时，返回用户奖励汇总并提示抽奖已完成。
-        - 当用户说获取SSR结果时，fetch_remote=false：返回SSR结果，并根据结果使用雌小鬼语气讽刺用户或恭喜用户；
-        - pity_before: SSR保底计数器前值
-        - pity_after: SSR保底计数器后值
-        SSR权重是最终获取SSR奖品的概率，越高越好！
+    # @filter.llm_tool(name="get_tmp_result")
+    # async def get_tmp_result(self, event: AstrMessageEvent, fetch_remote: bool = False) -> MessageEventResult:
+    #     """工具说明（供 AI 调用）：
+    #     获取抽奖临时结果。
+    #     - 用户说“获取抽奖结果”时，fetch_remote=true：从远端获取最新结果，并重置十连展示进度,此时不要输出结果，等待用户十连抽卡；
+    #     - 用户说“十连抽卡”时，fetch_remote=false：按顺序返回下一组 10 连结果，根据结果使用雌小鬼语气讽刺用户或恭喜用户；
+    #     - 当没有更多 10 连结果时，返回用户奖励汇总并提示抽奖已完成。
+    #     - 当用户说获取SSR结果时，fetch_remote=false：返回SSR结果，并根据结果使用雌小鬼语气讽刺用户或恭喜用户；
+    #     - pity_before: SSR保底计数器前值
+    #     - pity_after: SSR保底计数器后值
+    #     SSR权重是最终获取SSR奖品的概率，越高越好！
 
-        Args:
-            fetch_remote(boolean): 是否从远端获取最新结果
-        """
-        cursor_file = self._tmp_cursor_file()
+    #     Args:
+    #         fetch_remote(boolean): 是否从远端获取最新结果
+    #     """
+    #     cursor_file = self._tmp_cursor_file()
 
-        try:
-            local_res = await api_cj_get_tmp_result(self.config["kahunasystem_host"])
-        except Exception as e:
-            return eve_error(f"get_tmp_result request failed: {e}")
-        if local_res.get("status") != 200:
-            return eve_error(self._format_api_error(local_res, "get_tmp_result failed"))
+    #     try:
+    #         local_res = await api_cj_get_tmp_result(self.config["kahunasystem_host"])
+    #     except Exception as e:
+    #         return eve_error(f"get_tmp_result request failed: {e}")
+    #     if local_res.get("status") != 200:
+    #         return eve_error(self._format_api_error(local_res, "get_tmp_result failed"))
 
-        data = local_res.get("data") or {}
-        logs = data.get("draw_settlement_logs") or []
-        batches = self._chunk_ten_draws(logs)
-        total_batches = len(batches)
+    #     data = local_res.get("data") or {}
+    #     logs = data.get("draw_settlement_logs") or []
+    #     batches = self._chunk_ten_draws(logs)
+    #     total_batches = len(batches)
 
-        if fetch_remote:
-            try:
-                cursor_file.parent.mkdir(parents=True, exist_ok=True)
-                cursor_file.write_text(json.dumps({"next_batch_index": 0}, ensure_ascii=False), encoding="utf-8")
-            except Exception as e:
-                return eve_error(f"reset local cursor failed: {e}")
-            return eve_json_result({
-                "message": "已从远端获取最新结果并重置展示进度, 总计{total_batches}组",
-                "ten_draw_count": total_batches,
-            })
+    #     if fetch_remote:
+    #         try:
+    #             cursor_file.parent.mkdir(parents=True, exist_ok=True)
+    #             cursor_file.write_text(json.dumps({"next_batch_index": 0}, ensure_ascii=False), encoding="utf-8")
+    #         except Exception as e:
+    #             return eve_error(f"reset local cursor failed: {e}")
+    #         return eve_json_result({
+    #             "message": "已从远端获取最新结果并重置展示进度, 总计{total_batches}组",
+    #             "ten_draw_count": total_batches,
+    #         })
 
-        next_batch_index = 0
-        if cursor_file.exists():
-            try:
-                cursor = json.loads(cursor_file.read_text(encoding="utf-8"))
-                next_batch_index = int(cursor.get("next_batch_index", 0))
-            except Exception:
-                next_batch_index = 0
+    #     next_batch_index = 0
+    #     if cursor_file.exists():
+    #         try:
+    #             cursor = json.loads(cursor_file.read_text(encoding="utf-8"))
+    #             next_batch_index = int(cursor.get("next_batch_index", 0))
+    #         except Exception:
+    #             next_batch_index = 0
 
-        if next_batch_index < total_batches:
-            batch = batches[next_batch_index]
-            remaining = total_batches - next_batch_index - 1
-            try:
-                cursor_file.parent.mkdir(parents=True, exist_ok=True)
-                cursor_file.write_text(
-                    json.dumps({"next_batch_index": next_batch_index + 1}, ensure_ascii=False),
-                    encoding="utf-8",
-                )
-            except Exception as e:
-                return eve_error(f"update local cursor failed: {e}")
+    #     if next_batch_index < total_batches:
+    #         batch = batches[next_batch_index]
+    #         remaining = total_batches - next_batch_index - 1
+    #         try:
+    #             cursor_file.parent.mkdir(parents=True, exist_ok=True)
+    #             cursor_file.write_text(
+    #                 json.dumps({"next_batch_index": next_batch_index + 1}, ensure_ascii=False),
+    #                 encoding="utf-8",
+    #             )
+    #         except Exception as e:
+    #             return eve_error(f"update local cursor failed: {e}")
 
-            # 压缩10连返回字段，降低上下文消耗
-            compact_batch = []
-            for row in batch:
-                if not isinstance(row, dict):
-                    continue
-                compact_batch.append({
-                    "no": row.get("draw_no"),
-                    "name": row.get("name"),
-                    "type": row.get("result_type"),
-                    "reward": row.get("reward_name"),
-                    "rarity": row.get("rarity"),
-                    "pity_before": row.get("pity_before"),
-                    "pity_after": row.get("pity_after"),
-                })
+    #         # 压缩10连返回字段，降低上下文消耗
+    #         compact_batch = []
+    #         for row in batch:
+    #             if not isinstance(row, dict):
+    #                 continue
+    #             compact_batch.append({
+    #                 "no": row.get("draw_no"),
+    #                 "name": row.get("name"),
+    #                 "type": row.get("result_type"),
+    #                 "reward": row.get("reward_name"),
+    #                 "rarity": row.get("rarity"),
+    #                 "pity_before": row.get("pity_before"),
+    #                 "pity_after": row.get("pity_after"),
+    #             })
 
-            return eve_json_result({
-                "message": f"返回一组10连结果, 剩余{remaining}组",
-                "current_ten_draw_index": next_batch_index + 1,
-                "remaining_ten_draw_count": remaining,
-                "draw_results": compact_batch,
-            })
+    #         return eve_json_result({
+    #             "message": f"返回一组10连结果, 剩余{remaining}组",
+    #             "current_ten_draw_index": next_batch_index + 1,
+    #             "remaining_ten_draw_count": remaining,
+    #             "draw_results": compact_batch,
+    #         })
 
-        rewards_summary = self._build_rewards_summary(data)
-        return eve_json_result({
-            "message": "抽奖已完成",
-            "remaining_ten_draw_count": 0,
-            "rewards_by_user": rewards_summary,
-        })
+    #     rewards_summary = self._build_rewards_summary(data)
+    #     return eve_json_result({
+    #         "message": "抽奖已完成",
+    #         "remaining_ten_draw_count": 0,
+    #         "rewards_by_user": rewards_summary,
+    #     })
 
-    @filter.llm_tool(name="get_paps_status")
-    async def get_paps_status(self, event: AstrMessageEvent, name: str = None) -> MessageEventResult:
-        """工具说明（供 AI 调用）：
-        根据角色名查询用户 PAP 状态与保底计数器状态。
-        - 当未传 name 时，从发送者昵称提取角色名；
-        - 昵称提取规则参考“医保查询”：若含 `/`，取最后一个 `/` 后半段。
+    # @filter.llm_tool(name="get_paps_status")
+    # async def get_paps_status(self, event: AstrMessageEvent, name: str = None) -> MessageEventResult:
+    #     """工具说明（供 AI 调用）：
+    #     根据角色名查询用户 PAP 状态与保底计数器状态。
+    #     - 当未传 name 时，从发送者昵称提取角色名；
+    #     - 昵称提取规则参考“医保查询”：若含 `/`，取最后一个 `/` 后半段。
 
-        Args:
-            name(string): 角色名, 
-        """
-        role_name = self._extract_role_name(name or event.get_sender_name())
-        if not role_name:
-            return eve_error("name is required")
-        try:
-            res_json = await api_cj_get_paps_status(self.config["kahunasystem_host"], role_name)
-        except Exception as e:
-            return eve_error(f"get_paps_status request failed: {e}")
-        if res_json.get("status") != 200:
-            return eve_error(self._format_api_error(res_json, "get_paps_status failed"))
-        return eve_json_result(res_json)
+    #     Args:
+    #         name(string): 角色名, 
+    #     """
+    #     role_name = self._extract_role_name(name or event.get_sender_name())
+    #     if not role_name:
+    #         return eve_error("name is required")
+    #     try:
+    #         res_json = await api_cj_get_paps_status(self.config["kahunasystem_host"], role_name)
+    #     except Exception as e:
+    #         return eve_error(f"get_paps_status request failed: {e}")
+    #     if res_json.get("status") != 200:
+    #         return eve_error(self._format_api_error(res_json, "get_paps_status failed"))
+    #     return eve_json_result(res_json)
 
-    @filter.llm_tool(name="get_reward")
-    async def get_reward(self, event: AstrMessageEvent) -> MessageEventResult:
-        """获取奖品配置。
+    # @filter.llm_tool(name="get_reward")
+    # async def get_reward(self, event: AstrMessageEvent) -> MessageEventResult:
+    #     """获取奖品配置。
 
-        返回所有奖品列表与轮次区间信息。
-        """
-        try:
-            res_json = await api_get_reward(self.config["kahunasystem_host"])
-        except Exception as e:
-            return eve_error(f"get_reward request failed: {e}")
-        if res_json.get("status") != 200:
-            return eve_error(self._format_api_error(res_json, "get_reward failed"))
-        return eve_json_result(res_json)
+    #     返回所有奖品列表与轮次区间信息。
+    #     """
+    #     try:
+    #         res_json = await api_get_reward(self.config["kahunasystem_host"])
+    #     except Exception as e:
+    #         return eve_error(f"get_reward request failed: {e}")
+    #     if res_json.get("status") != 200:
+    #         return eve_error(self._format_api_error(res_json, "get_reward failed"))
+    #     return eve_json_result(res_json)
 
 
-    @filter.llm_tool(name="get_active_reward")
-    async def get_active_reward(self, event: AstrMessageEvent) -> MessageEventResult:
-        """??????????????
+    # @filter.llm_tool(name="get_active_reward")
+    # async def get_active_reward(self, event: AstrMessageEvent) -> MessageEventResult:
+    #     """??????????????
 
-        ?????? round_id????? time??? rewards ???
-        """
-        try:
-            res_json = await api_cj_get_active_reward(self.config["kahunasystem_host"])
-        except Exception as e:
-            return eve_error(f"get_active_reward request failed: {e}")
-        if res_json.get("status") != 200:
-            return eve_error(self._format_api_error(res_json, "get_active_reward failed"))
-        return eve_json_result(res_json)
+    #     ?????? round_id????? time??? rewards ???
+    #     """
+    #     try:
+    #         res_json = await api_cj_get_active_reward(self.config["kahunasystem_host"])
+    #     except Exception as e:
+    #         return eve_error(f"get_active_reward request failed: {e}")
+    #     if res_json.get("status") != 200:
+    #         return eve_error(self._format_api_error(res_json, "get_active_reward failed"))
+    #     return eve_json_result(res_json)
