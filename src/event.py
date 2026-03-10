@@ -157,3 +157,4 @@ class Event():
             return event.plain_result(res_json.get("message") or "绑定失败。")
 
         return event.plain_result("绑定成功")
+

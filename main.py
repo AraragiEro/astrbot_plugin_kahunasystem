@@ -6,8 +6,16 @@ import json
 from pathlib import Path
 
 from .src.event import Event
-from .src.tools.eve_tools import ApiInfoTool, ApiListTool, eve_error, eve_json_result
+from .src.tools.eve_tools import (
+    ApiInfoTool,
+    ApiListTool,
+    ZkbUrlData,
+    Name2ID,
+    eve_error,
+    eve_json_result
+)
 from .src.api_client import (
+    get_json,
     api_run,
     api_get_reward,
     api_cj_get_active_reward,
@@ -31,6 +39,8 @@ class MyPlugin(Star):
         Event.config = self.config
         self.context.add_llm_tools(ApiListTool())
         self.context.add_llm_tools(ApiInfoTool())
+        self.context.add_llm_tools(ZkbUrlData())
+        self.context.add_llm_tools(Name2ID())
 
     async def initialize(self):
         """可选的异步初始化方法。"""
@@ -132,169 +142,9 @@ class MyPlugin(Star):
     async def ssid(self, event: AstrMessageEvent):
         yield event.plain_result(f"你的 session id 是: {event.get_session_id()}")
 
-    @filter.command_group("cj")
-    def cj(self):
-        """抽奖指令组。"""
-        pass
-
-    @filter.permission_type(filter.PermissionType.ADMIN)
-    @cj.command("init")
-    async def cj_init(self, event: AstrMessageEvent):
-        try:
-            res_json = await api_cj_init(self.config["kahunasystem_host"])
-        except Exception as e:
-            logger.error(f"cj init 调用异常: {e}")
-            yield event.plain_result(f"初始化异常：{e}\n{self._cj_usage()}")
-            return
-        if res_json.get("status") != 200:
-            yield event.plain_result(f"初始化失败：{self._format_api_error(res_json, 'init 调用失败')}")
-            return
-        yield event.plain_result("抽奖状态初始化成功。")
-
-    @filter.permission_type(filter.PermissionType.ADMIN)
-    @cj.command("on")
-    async def cj_on(self, event: AstrMessageEvent):
-        try:
-            res_json = await api_cj_set_active(self.config["kahunasystem_host"], True)
-        except Exception as e:
-            logger.error(f"cj on 调用异常: {e}")
-            yield event.plain_result(f"开启录入异常：{e}\n{self._cj_usage()}")
-            return
-        if res_json.get("status") != 200:
-            yield event.plain_result(f"开启录入失败：{self._format_api_error(res_json, 'set_active 调用失败')}")
-            return
-        yield event.plain_result("已开启抽奖信息录入。")
-
-    @filter.permission_type(filter.PermissionType.ADMIN)
-    @cj.command("off")
-    async def cj_off(self, event: AstrMessageEvent):
-        try:
-            res_json = await api_cj_set_active(self.config["kahunasystem_host"], False)
-        except Exception as e:
-            logger.error(f"cj off 调用异常: {e}")
-            yield event.plain_result(f"关闭录入异常：{e}\n{self._cj_usage()}")
-            return
-        if res_json.get("status") != 200:
-            yield event.plain_result(f"关闭录入失败：{self._format_api_error(res_json, 'set_active 调用失败')}")
-            return
-        yield event.plain_result("已关闭抽奖信息录入。")
-
-    @filter.permission_type(filter.PermissionType.ADMIN)
-    @cj.command("run")
-    async def cj_run(self, event: AstrMessageEvent):
-        try:
-            res_json = await api_cj_run(self.config["kahunasystem_host"])
-        except Exception as e:
-            logger.error(f"cj run 调用异常: {e}")
-            yield event.plain_result(f"执行抽奖异常：{e}\n{self._cj_usage()}")
-            return
-        if res_json.get("status") != 200:
-            yield event.plain_result(f"执行抽奖失败：{self._format_api_error(res_json, 'run 调用失败')}")
-            return
-        yield event.plain_result("抽奖已执行完成，可通知ai 查看结果。")
-
-    @filter.permission_type(filter.PermissionType.ADMIN)
-    @cj.command("next")
-    async def cj_next(self, event: AstrMessageEvent):
-        try:
-            res_json = await api_cj_next_round(self.config["kahunasystem_host"])
-        except Exception as e:
-            logger.error(f"cj next 调用异常: {e}")
-            yield event.plain_result(f"切换轮次异常：{e}\n{self._cj_usage()}")
-            return
-        if res_json.get("status") != 200:
-            yield event.plain_result(f"切换下一轮失败：{self._format_api_error(res_json, 'next_round 调用失败')}")
-            return
-        yield event.plain_result("已切换到下一轮抽奖。")
-
-    @filter.permission_type(filter.PermissionType.ADMIN)
-    @cj.command("save")
-    async def cj_save(self, event: AstrMessageEvent):
-        try:
-            res_json = await api_cj_save_state(self.config["kahunasystem_host"])
-        except Exception as e:
-            logger.error(f"cj save 调用异常: {e}")
-            yield event.plain_result(f"保存状态异常：{e}\n{self._cj_usage()}")
-            return
-        if res_json.get("status") != 200:
-            yield event.plain_result(f"保存状态失败：{self._format_api_error(res_json, 'save_state 调用失败')}")
-            return
-        yield event.plain_result(res_json.get("message") or "抽奖状态保存成功。")
-
-    @filter.permission_type(filter.PermissionType.ADMIN)
-    @cj.command("set")
-    async def cj_set(self, event: AstrMessageEvent, round_id_value: str = None):
-        if round_id_value is None:
-            parts = (event.get_message_str() or "").strip().split()
-            round_id_value = parts[2] if len(parts) >= 3 else None
-        if not round_id_value:
-            yield event.plain_result("参数错误：缺少轮次编号。\n用法：.cj set [id]")
-            return
-        try:
-            round_id = int(round_id_value)
-        except Exception:
-            yield event.plain_result("参数错误：轮次编号必须是整数。\n用法：.cj set [id]")
-            return
-        if round_id <= 0:
-            yield event.plain_result("参数错误：轮次编号必须大于 0。\n用法：.cj set [id]")
-            return
-        try:
-            res_json = await api_cj_set_round(self.config["kahunasystem_host"], round_id)
-        except Exception as e:
-            logger.error(f"cj set 调用异常: {e}")
-            yield event.plain_result(f"设置轮次异常：{e}\n{self._cj_usage()}")
-            return
-        if res_json.get("status") != 200:
-            yield event.plain_result(f"设置轮次失败：{self._format_api_error(res_json, 'set_round 调用失败')}")
-            return
-        actual_round_id = (res_json.get("data") or {}).get("round_id", round_id)
-        yield event.plain_result(f"已设置当前抽奖轮次为：{actual_round_id}")
-
-    @cj.command("help")
-    async def cj_help(self, event: AstrMessageEvent):
-        yield event.plain_result(self._cj_usage())
-
-    @cj.command("paps")
-    async def cj_paps(self, event: AstrMessageEvent, paps_value: str = None):
-        if paps_value is None:
-            parts = (event.get_message_str() or "").strip().split()
-            paps_value = parts[2] if len(parts) >= 3 else None
-        if not paps_value:
-            yield event.plain_result("参数错误：缺少 PAP 数量。\n用法：.cj paps [int]")
-            return
-        try:
-            paps = int(paps_value)
-        except Exception:
-            yield event.plain_result("参数错误：PAP 数量必须是整数。\n用法：.cj paps [int]")
-            return
-        if paps < 0:
-            yield event.plain_result("参数错误：PAP 数量不能为负数。\n用法：.cj paps [int]")
-            return
-
-        role_name = self._extract_role_name(event.get_sender_name())
-        if not role_name:
-            yield event.plain_result("无法识别角色名，请检查你的群昵称是否可读。")
-            return
-
-        try:
-            res_json = await api_cj_set_user_paps_used(self.config["kahunasystem_host"], role_name, paps)
-        except Exception as e:
-            logger.error(f"cj paps 调用异常: {e}")
-            yield event.plain_result(f"录入 PAP 异常：{e}\n请确认后端服务可用。")
-            return
-        if res_json.get("status") != 200:
-            yield event.plain_result(
-                f"录入 PAP 失败：{self._format_api_error(res_json, 'set_user_paps_used 调用失败')}\n"
-                "请确认抽奖录入已开启（.cj on）且角色名配置正确。"
-            )
-            return
-        data = res_json.get("data") or {}
-        remain = data.get("remain_paps", "未知")
-        used = data.get("this_round_used_paps", "未知")
-        yield event.plain_result(f"录入成功：角色 {role_name} 本轮已录入 {used} PAP，剩余 PAP {remain}。")
-
     async def terminate(self):
         """可选的异步销毁方法。"""
+
 
     @filter.llm_tool(name="kahunasystem_apirun")
     async def kahunasystem_apirun(self, event: AstrMessageEvent, api_id: str, access_token: str, eve_args: dict) -> MessageEventResult:
@@ -320,6 +170,167 @@ class MyPlugin(Star):
             message = res_json.get("message", "api run failed")
             return eve_error(message)
         return eve_json_result(res_json)
+
+    # @filter.command_group("cj")
+    # def cj(self):
+    #     """抽奖指令组。"""
+    #     pass
+
+    # @filter.permission_type(filter.PermissionType.ADMIN)
+    # @cj.command("init")
+    # async def cj_init(self, event: AstrMessageEvent):
+    #     try:
+    #         res_json = await api_cj_init(self.config["kahunasystem_host"])
+    #     except Exception as e:
+    #         logger.error(f"cj init 调用异常: {e}")
+    #         yield event.plain_result(f"初始化异常：{e}\n{self._cj_usage()}")
+    #         return
+    #     if res_json.get("status") != 200:
+    #         yield event.plain_result(f"初始化失败：{self._format_api_error(res_json, 'init 调用失败')}")
+    #         return
+    #     yield event.plain_result("抽奖状态初始化成功。")
+
+    # @filter.permission_type(filter.PermissionType.ADMIN)
+    # @cj.command("on")
+    # async def cj_on(self, event: AstrMessageEvent):
+    #     try:
+    #         res_json = await api_cj_set_active(self.config["kahunasystem_host"], True)
+    #     except Exception as e:
+    #         logger.error(f"cj on 调用异常: {e}")
+    #         yield event.plain_result(f"开启录入异常：{e}\n{self._cj_usage()}")
+    #         return
+    #     if res_json.get("status") != 200:
+    #         yield event.plain_result(f"开启录入失败：{self._format_api_error(res_json, 'set_active 调用失败')}")
+    #         return
+    #     yield event.plain_result("已开启抽奖信息录入。")
+
+    # @filter.permission_type(filter.PermissionType.ADMIN)
+    # @cj.command("off")
+    # async def cj_off(self, event: AstrMessageEvent):
+    #     try:
+    #         res_json = await api_cj_set_active(self.config["kahunasystem_host"], False)
+    #     except Exception as e:
+    #         logger.error(f"cj off 调用异常: {e}")
+    #         yield event.plain_result(f"关闭录入异常：{e}\n{self._cj_usage()}")
+    #         return
+    #     if res_json.get("status") != 200:
+    #         yield event.plain_result(f"关闭录入失败：{self._format_api_error(res_json, 'set_active 调用失败')}")
+    #         return
+    #     yield event.plain_result("已关闭抽奖信息录入。")
+
+    # @filter.permission_type(filter.PermissionType.ADMIN)
+    # @cj.command("run")
+    # async def cj_run(self, event: AstrMessageEvent):
+    #     try:
+    #         res_json = await api_cj_run(self.config["kahunasystem_host"])
+    #     except Exception as e:
+    #         logger.error(f"cj run 调用异常: {e}")
+    #         yield event.plain_result(f"执行抽奖异常：{e}\n{self._cj_usage()}")
+    #         return
+    #     if res_json.get("status") != 200:
+    #         yield event.plain_result(f"执行抽奖失败：{self._format_api_error(res_json, 'run 调用失败')}")
+    #         return
+    #     yield event.plain_result("抽奖已执行完成，可通知ai 查看结果。")
+
+    # @filter.permission_type(filter.PermissionType.ADMIN)
+    # @cj.command("next")
+    # async def cj_next(self, event: AstrMessageEvent):
+    #     try:
+    #         res_json = await api_cj_next_round(self.config["kahunasystem_host"])
+    #     except Exception as e:
+    #         logger.error(f"cj next 调用异常: {e}")
+    #         yield event.plain_result(f"切换轮次异常：{e}\n{self._cj_usage()}")
+    #         return
+    #     if res_json.get("status") != 200:
+    #         yield event.plain_result(f"切换下一轮失败：{self._format_api_error(res_json, 'next_round 调用失败')}")
+    #         return
+    #     yield event.plain_result("已切换到下一轮抽奖。")
+
+    # @filter.permission_type(filter.PermissionType.ADMIN)
+    # @cj.command("save")
+    # async def cj_save(self, event: AstrMessageEvent):
+    #     try:
+    #         res_json = await api_cj_save_state(self.config["kahunasystem_host"])
+    #     except Exception as e:
+    #         logger.error(f"cj save 调用异常: {e}")
+    #         yield event.plain_result(f"保存状态异常：{e}\n{self._cj_usage()}")
+    #         return
+    #     if res_json.get("status") != 200:
+    #         yield event.plain_result(f"保存状态失败：{self._format_api_error(res_json, 'save_state 调用失败')}")
+    #         return
+    #     yield event.plain_result(res_json.get("message") or "抽奖状态保存成功。")
+
+    # @filter.permission_type(filter.PermissionType.ADMIN)
+    # @cj.command("set")
+    # async def cj_set(self, event: AstrMessageEvent, round_id_value: str = None):
+    #     if round_id_value is None:
+    #         parts = (event.get_message_str() or "").strip().split()
+    #         round_id_value = parts[2] if len(parts) >= 3 else None
+    #     if not round_id_value:
+    #         yield event.plain_result("参数错误：缺少轮次编号。\n用法：.cj set [id]")
+    #         return
+    #     try:
+    #         round_id = int(round_id_value)
+    #     except Exception:
+    #         yield event.plain_result("参数错误：轮次编号必须是整数。\n用法：.cj set [id]")
+    #         return
+    #     if round_id <= 0:
+    #         yield event.plain_result("参数错误：轮次编号必须大于 0。\n用法：.cj set [id]")
+    #         return
+    #     try:
+    #         res_json = await api_cj_set_round(self.config["kahunasystem_host"], round_id)
+    #     except Exception as e:
+    #         logger.error(f"cj set 调用异常: {e}")
+    #         yield event.plain_result(f"设置轮次异常：{e}\n{self._cj_usage()}")
+    #         return
+    #     if res_json.get("status") != 200:
+    #         yield event.plain_result(f"设置轮次失败：{self._format_api_error(res_json, 'set_round 调用失败')}")
+    #         return
+    #     actual_round_id = (res_json.get("data") or {}).get("round_id", round_id)
+    #     yield event.plain_result(f"已设置当前抽奖轮次为：{actual_round_id}")
+
+    # @cj.command("help")
+    # async def cj_help(self, event: AstrMessageEvent):
+    #     yield event.plain_result(self._cj_usage())
+
+    # @cj.command("paps")
+    # async def cj_paps(self, event: AstrMessageEvent, paps_value: str = None):
+    #     if paps_value is None:
+    #         parts = (event.get_message_str() or "").strip().split()
+    #         paps_value = parts[2] if len(parts) >= 3 else None
+    #     if not paps_value:
+    #         yield event.plain_result("参数错误：缺少 PAP 数量。\n用法：.cj paps [int]")
+    #         return
+    #     try:
+    #         paps = int(paps_value)
+    #     except Exception:
+    #         yield event.plain_result("参数错误：PAP 数量必须是整数。\n用法：.cj paps [int]")
+    #         return
+    #     if paps < 0:
+    #         yield event.plain_result("参数错误：PAP 数量不能为负数。\n用法：.cj paps [int]")
+    #         return
+
+    #     role_name = self._extract_role_name(event.get_sender_name())
+    #     if not role_name:
+    #         yield event.plain_result("无法识别角色名，请检查你的群昵称是否可读。")
+    #         return
+
+    #     try:
+    #         res_json = await api_cj_set_user_paps_used(self.config["kahunasystem_host"], role_name, paps)
+    #     except Exception as e:
+    #         logger.error(f"cj paps 调用异常: {e}")
+    #         yield event.plain_result(f"录入 PAP 异常：{e}\n请确认后端服务可用。")
+    #         return
+    #     if res_json.get("status") != 200:
+    #         yield event.plain_result(
+    #             f"录入 PAP 失败：{self._format_api_error(res_json, 'set_user_paps_used 调用失败')}\n"
+    #             "请确认抽奖录入已开启（.cj on）且角色名配置正确。"
+    #         )
+    #         return
+    #     data = res_json.get("data") or {}
+    #     remain = data.get("remain_paps", "未知")
+    #     used = data.get("this_round_used_paps", "未知")
+    #     yield event.plain_result(f"录入成功：角色 {role_name} 本轮已录入 {used} PAP，剩余 PAP {remain}。")
 
     # @filter.llm_tool(name="get_tmp_result")
     # async def get_tmp_result(self, event: AstrMessageEvent, fetch_remote: bool = False) -> MessageEventResult:

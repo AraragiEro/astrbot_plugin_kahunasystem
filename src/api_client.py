@@ -1,9 +1,13 @@
 import json
 import aiohttp
-
+from astrbot.api import logger
 
 async def get_json(host: str, path: str, timeout: int):
-    api_url = f"http://{host}{path}"
+    if host.startswith("http://") or host.startswith("https://"):
+        api_url = f"{host}{path}"
+    else:
+        api_url = f"http://{host}{path}"
+
     async with aiohttp.ClientSession() as session:
         async with session.get(
             api_url,
@@ -15,7 +19,12 @@ async def get_json(host: str, path: str, timeout: int):
 
 
 async def post_json(host: str, path: str, payload: dict, timeout: int):
-    api_url = f"http://{host}{path}"
+    if host.startswith("http://") or host.startswith("https://"):
+        api_url = f"{host}{path}"
+    else:
+        api_url = f"http://{host}{path}"
+
+    logger.debug(f"POST {api_url}, payload: {payload}")
     async with aiohttp.ClientSession() as session:
         async with session.post(
             api_url,
@@ -222,4 +231,24 @@ async def api_cj_get_active_reward(host: str):
         host,
         "/api/astrbot/kahunasystem/choujiang/get_active_reward",
         timeout=20,
+    )
+
+async def api_zkb_get_character_data(host: str, character_id: int):
+    return await get_json(
+        "https://zkillboard.com/api/stats/characterID",
+        f"/{character_id}/",
+    )
+
+async def api_zkb_get_corporation_data(host: str, corporation_id: int):
+    return await get_json(
+        "https://zkillboard.com/api/stats/corporationID",
+        f"/{corporation_id}/",
+    )
+
+async def api_esi_name2id(search_str: str):
+    return await post_json(
+        "https://esi.evetech.net",
+        "/latest/universe/ids/",
+        payload=[search_str],
+        timeout=10,
     )
