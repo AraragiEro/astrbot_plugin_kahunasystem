@@ -2,6 +2,7 @@ import json
 import aiohttp
 from astrbot.api import logger
 
+
 async def get_json(host: str, path: str, timeout: int):
     if host.startswith("http://") or host.startswith("https://"):
         api_url = f"{host}{path}"
@@ -63,7 +64,9 @@ async def api_info(host: str, api_id: str):
     )
 
 
-async def api_run(host: str, api_id: str, args: dict, qq: str = None, access_token: str = None):
+async def api_run(
+    host: str, api_id: str, args: dict, qq: str = None, access_token: str = None
+):
     return await post_json(
         host,
         "/api/astrbot/kahunasystem/api/run",
@@ -80,7 +83,9 @@ async def api_price_detail(host: str, type_name: str):
     )
 
 
-async def api_type_cost(host: str, type_name: str, user_name: str, plan_name: str):
+async def api_type_cost(
+    host: str, type_name: str, user_name: str, plan_name: str, access_token: str = None
+):
     return await api_run(
         host,
         "market_type_cost",
@@ -89,6 +94,8 @@ async def api_type_cost(host: str, type_name: str, user_name: str, plan_name: st
             "user_name": user_name,
             "plan_name": plan_name,
         },
+        None,
+        access_token,
     )
 
 
@@ -218,6 +225,7 @@ async def api_cj_get_tmp_result(host: str):
         timeout=20,
     )
 
+
 async def api_get_reward(host: str):
     return await post_json(
         host,
@@ -226,6 +234,7 @@ async def api_get_reward(host: str):
         timeout=20,
     )
 
+
 async def api_cj_get_active_reward(host: str):
     return await get_json(
         host,
@@ -233,17 +242,20 @@ async def api_cj_get_active_reward(host: str):
         timeout=20,
     )
 
+
 async def api_zkb_get_character_data(host: str, character_id: int):
     return await get_json(
         "https://zkillboard.com/api/stats/characterID",
         f"/{character_id}/",
     )
 
+
 async def api_zkb_get_corporation_data(host: str, corporation_id: int):
     return await get_json(
         "https://zkillboard.com/api/stats/corporationID",
         f"/{corporation_id}/",
     )
+
 
 async def api_esi_name2id(search_str: str):
     return await post_json(

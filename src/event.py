@@ -1,14 +1,19 @@
-﻿from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
+from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api.message_components import Image
 from astrbot.core.message.components import Plain
 from astrbot.core import logger
 import asyncio
 
-from .picture_render_server.render_template import render_price_res_pic, render_single_cost_pic
-from .api_client import api_price_detail, api_type_cost, api_qq_bind
+from .picture_render_server.render_template import (
+    render_price_res_pic,
+    render_single_cost_pic,
+)
+from .api_client import api_price_detail, api_type_cost, api_qq_bind, api_info
 
 calculate_lock = asyncio.Lock()
+
+
 async def try_acquire_lock(lock, timeout=0.01):
     """尝试非阻塞地获取锁"""
     try:
@@ -24,10 +29,15 @@ def parse_allow_group_ids(raw_value):
     if isinstance(raw_value, (list, tuple, set)):
         return {str(item).strip() for item in raw_value if str(item).strip()}
     if isinstance(raw_value, str):
-        return {item.strip() for item in raw_value.replace("，", ",").split(",") if item.strip()}
+        return {
+            item.strip()
+            for item in raw_value.replace("，", ",").split(",")
+            if item.strip()
+        }
     return set()
 
-class Event():
+
+class Event:
     config = None
 
     @staticmethod
@@ -57,8 +67,7 @@ class Event():
             fuzz_list = res_json.get("data", []) or []
             if not fuzz_list:
                 return event.plain_result(f"物品 {item_name} 未找到。")
-            fuzz_reply = (f"物品 {item_name} 不存在于数据库\n"
-                          f"你是否在寻找:\n")
+            fuzz_reply = f"物品 {item_name} 不存在于数据库\n你是否在寻找:\n"
             fuzz_reply += "\n".join(fuzz_list)
             return event.plain_result(fuzz_reply)
 
@@ -68,43 +77,65 @@ class Event():
         # 统一使用后端字段名：orderdata
         order_data = data.get("orderdata") or {"buy_order": {}, "sell_order": {}}
 
-        quantity_str = ''
+        quantity_str = ""
 
         res_path = await render_price_res_pic(
             data,
             chart_history_data,
             order_data,
         )
-        chain = [
-            Image.fromFileSystem(res_path)
-        ]
+        chain = [Image.fromFileSystem(res_path)]
         if quantity > 1:
-            quantity_str += f'--------鎬昏--------\n'
+            quantity_str += f"--------鎬昏--------\n"
             min_sell = data.get("sell", 0)
             max_buy = data.get("buy", 0)
             mid_price = data.get("mid", 0)
-            quantity_str += f'sell: {min_sell * quantity:,}\n'
-            quantity_str += f'buy: {max_buy * quantity:,}\n'
-            quantity_str += f'mid: {mid_price * quantity:,}\n'
+            quantity_str += f"sell: {min_sell * quantity:,}\n"
+            quantity_str += f"buy: {max_buy * quantity:,}\n"
+            quantity_str += f"mid: {mid_price * quantity:,}\n"
             chain += [Plain(quantity_str)]
         return event.chain_result(chain)
 
     @staticmethod
-    async def costdetail(event: AstrMessageEvent, product: str, username: str = None, plan_name: str = None):
+    async def costdetail(
+        event: AstrMessageEvent,
+        product: str,
+        username: str = None,
+        plan_name: str = None,
+    ):
         if await try_acquire_lock(calculate_lock, 1):
             try:
                 type_name = product
                 if not type_name:
                     return event.plain_result("未提供物品名称。")
 
-                user_name = username or Event.config['cost_username']
-                plan = plan_name or Event.config['cost_plan']
+                # 先获取 access_token
+                try:
+                    info_res = await api_info(
+                        Event.config["kahunasystem_host"],
+                        "market_type_cost",
+                    )
+                except Exception as e:
+                    logger.error(f"获取token异常: {e}")
+                    return event.plain_result("获取访问令牌失败，请稍后再试。")
+
+                if info_res.get("status") != 200:
+                    message = info_res.get("message", "获取访问令牌失败")
+                    return event.plain_result(f"获取访问令牌失败: {message}")
+
+                access_token = info_res.get("data", {}).get("access_token")
+                if not access_token:
+                    return event.plain_result("获取访问令牌失败，请稍后再试。")
+
+                user_name = username or Event.config["cost_username"]
+                plan = plan_name or Event.config["cost_plan"]
                 try:
                     res_json = await api_type_cost(
                         Event.config["kahunasystem_host"],
                         type_name,
                         user_name,
                         plan,
+                        access_token,
                     )
                 except Exception as e:
                     logger.error(f"成本接口请求异常: {e}")
@@ -118,9 +149,7 @@ class Event():
                 detail_dict = res_json.get("data", {}) or {}
                 pic_path = await render_single_cost_pic(detail_dict)
 
-                chain = [
-                    Image.fromFileSystem(pic_path)
-                ]
+                chain = [Image.fromFileSystem(pic_path)]
                 return event.chain_result(chain)
             finally:
                 calculate_lock.release()
@@ -157,4 +186,3 @@ class Event():
             return event.plain_result(res_json.get("message") or "绑定失败。")
 
         return event.plain_result("绑定成功")
-
