@@ -1,91 +1,347 @@
-﻿<!doctype html>
-<html>
+<!doctype html>
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EVE 成本计算 - {{ item_name }}</title>
   <script src="https://cdn.jsdmirror.com/npm/@tailwindcss/browser@4"></script>
   <script src="https://cdn.jsdmirror.com/npm/chart.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style type="text/tailwindcss">
-    @layer utilities {
-      .content-auto {
-        content-visibility: auto;
-      }
+    @theme {
+      --color-deep-bg: #0a0e1a;
+      --color-card-bg: #111827;
+      --color-card-border: #1e3a5f;
+      --color-glow-cyan: #00d4ff;
+      --color-glow-blue: #3b82f6;
+      --color-text-primary: #e2e8f0;
+      --color-text-secondary: #94a3b8;
+      --color-profit-green: #10b981;
+      --color-loss-red: #ef4444;
+      --color-accent-purple: #8b5cf6;
+      --font-tech: 'Rajdhani', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    
+    @layer base {
       body {
-        padding: 20px;
-        background-color: #f3f4f6;
+        background: linear-gradient(135deg, #0a0e1a 0%, #0f172a 50%, #1a1f3a 100%);
+        min-height: 100vh;
+        font-family: 'Rajdhani', sans-serif;
+      }
+    }
+    
+    @layer utilities {
+      .glow-border {
+        position: relative;
+        background: rgba(17, 24, 39, 0.95);
+        border: 1px solid rgba(30, 58, 95, 0.6);
+        box-shadow: 
+          0 0 20px rgba(0, 212, 255, 0.1),
+          inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      }
+      
+      .glow-border::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.5), transparent);
+      }
+      
+      .glow-text-cyan {
+        text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+      }
+      
+      .glow-text-blue {
+        text-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
+      }
+      
+      .tech-card {
+        background: linear-gradient(145deg, rgba(17, 24, 39, 0.98) 0%, rgba(15, 23, 42, 0.95) 100%);
+        border: 1px solid rgba(30, 58, 95, 0.5);
+        box-shadow: 
+          0 4px 24px rgba(0, 0, 0, 0.4),
+          0 0 0 1px rgba(0, 212, 255, 0.1),
+          inset 0 1px 0 rgba(255, 255, 255, 0.03);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      
+      .tech-card:hover {
+        border-color: rgba(0, 212, 255, 0.3);
+        box-shadow: 
+          0 8px 32px rgba(0, 0, 0, 0.5),
+          0 0 20px rgba(0, 212, 255, 0.15),
+          inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        transform: translateY(-2px);
+      }
+      
+      .data-badge {
+        background: linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
+        border: 1px solid rgba(0, 212, 255, 0.2);
+        backdrop-filter: blur(8px);
+      }
+      
+      .icon-container {
+        background: radial-gradient(circle at center, rgba(0, 212, 255, 0.1) 0%, transparent 70%);
+        border: 2px solid rgba(0, 212, 255, 0.3);
+        box-shadow: 
+          0 0 30px rgba(0, 212, 255, 0.2),
+          inset 0 0 20px rgba(0, 212, 255, 0.05);
+      }
+      
+      .value-display {
+        font-family: 'JetBrains Mono', monospace;
+        letter-spacing: -0.02em;
+      }
+      
+      .divider-glow {
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.3), transparent);
+      }
+      
+      .corner-accent {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        border: 2px solid rgba(0, 212, 255, 0.5);
+      }
+      
+      .corner-accent-tl { top: -1px; left: -1px; border-right: 0; border-bottom: 0; }
+      .corner-accent-tr { top: -1px; right: -1px; border-left: 0; border-bottom: 0; }
+      .corner-accent-bl { bottom: -1px; left: -1px; border-right: 0; border-top: 0; }
+      .corner-accent-br { bottom: -1px; right: -1px; border-left: 0; border-top: 0; }
+      
+      .pulse-dot {
+        width: 6px;
+        height: 6px;
+        background: #10b981;
+        border-radius: 50%;
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        animation: pulse-green 2s infinite;
+      }
+      
+      @keyframes pulse-green {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+        70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+      }
+      
+      .shimmer {
+        background: linear-gradient(
+          90deg,
+          rgba(255, 255, 255, 0) 0%,
+          rgba(255, 255, 255, 0.03) 50%,
+          rgba(255, 255, 255, 0) 100%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 3s infinite;
+      }
+      
+      @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+      }
+      
+      .grid-bg {
+        background-image: 
+          linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+        background-size: 50px 50px;
       }
     }
   </style>
 </head>
-<body class="bg-gray-100 p-0 m-0">
-  <div id="body1" class="bg-gray-100 p-0 m-0">
-  <!-- 第一个区块：物品基本信息 -->
-  <div class="container mx-auto px-4 max-w-lg bg-white rounded-lg shadow-md p-6 mb-6 mt-6">
-    <div class="flex justify-between items-center">
-      <div>
-        <h1 class="text-2xl font-bold">{{ item_name }}</h1>
-        <p class="text-2xl font-bold">{{ item_name_cn }}</p>
-        <p class="text-gray-600 font-bold">ID: {{ item_id }}</p>
-        <p class="text-gray-600">用户: {{ user_name }}</p>
-        <p class="text-gray-600">计划: {{ plan_name }}</p>
+<body class="grid-bg">
+  <div class="min-h-screen py-8 px-4">
+    <!-- 主容器 -->
+    <div class="max-w-2xl mx-auto">
+      
+      <!-- 头部系统标识 -->
+      <div class="flex items-center justify-center gap-3 mb-6 opacity-80">
+        <div class="pulse-dot"></div>
+        <span class="text-cyan-400 text-sm tracking-widest uppercase font-semibold">Industrial Core System</span>
+        <div class="h-px flex-1 max-w-[100px] bg-gradient-to-r from-cyan-500/50 to-transparent"></div>
       </div>
-      <div class="w-24 h-24 border-2 border-gray-300 rounded-lg overflow-hidden flex items-center justify-center">
-        <img src="https://imageserver.eveonline.com/types/{{ item_id }}/icon" alt="{{ item_name }}图标" class="w-full h-full object-cover">
-      </div>
-    </div>
-  </div>
 
-  <!-- 第二个区块：成本和 JITA 交易数据 -->
-  <div class="container mx-auto px-4 max-w-lg bg-white rounded-lg shadow-md p-6 mb-6">
-    <div class="flex justify-between items-center">
-      <!-- 成本区块 -->
-      <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-sm">
-        <h2 class="text-xl font-bold mb-4 text-center">成本</h2>
-        <p class="text-xl font-mono text-center">{{ cost|default('0')|format_number }}</p>
-        <div class="mt-4 pt-4 border-t border-gray-200">
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <p class="text-sm text-gray-600 text-center">利润</p>
-              <p class="font-mono text-center {% if profit > 0 %}text-green-600{% elif profit < 0 %}text-red-600{% else %}text-gray-600{% endif %}">
+      <!-- 第一个区块：物品基本信息 -->
+      <div class="tech-card rounded-xl p-6 mb-5 relative overflow-hidden">
+        <div class="corner-accent corner-accent-tl"></div>
+        <div class="corner-accent corner-accent-tr"></div>
+        <div class="corner-accent corner-accent-bl"></div>
+        <div class="corner-accent corner-accent-br"></div>
+        <div class="shimmer absolute inset-0 pointer-events-none"></div>
+        
+        <div class="flex items-start gap-5 relative z-10">
+          <!-- 物品图标 -->
+          <div class="flex-shrink-0">
+            <div class="icon-container w-24 h-24 rounded-xl flex items-center justify-center overflow-hidden">
+              <img src="https://imageserver.eveonline.com/types/{{ item_id }}/icon" 
+                   alt="{{ item_name }}图标" 
+                   class="w-20 h-20 object-cover drop-shadow-[0_0_10px_rgba(0,212,255,0.3)]">
+            </div>
+          </div>
+          
+          <!-- 物品信息 -->
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between">
+              <div>
+                <h1 class="text-2xl font-bold text-white glow-text-cyan leading-tight">{{ item_name }}</h1>
+                <p class="text-lg text-cyan-300/80 font-medium mt-1">{{ item_name_cn }}</p>
+              </div>
+            </div>
+            
+            <div class="mt-4 flex flex-wrap gap-2">
+              <div class="data-badge rounded-lg px-3 py-1.5">
+                <span class="text-cyan-400/60 text-xs uppercase tracking-wider">ID</span>
+                <span class="value-display text-cyan-200 text-sm ml-2">{{ item_id }}</span>
+              </div>
+              <div class="data-badge rounded-lg px-3 py-1.5">
+                <span class="text-cyan-400/60 text-xs uppercase tracking-wider">计划</span>
+                <span class="text-cyan-200 text-sm ml-2 truncate max-w-[120px]">{{ plan_name }}</span>
+              </div>
+            </div>
+            
+            <div class="mt-3 flex items-center gap-2">
+              <svg class="w-4 h-4 text-cyan-500/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+              </svg>
+              <span class="text-slate-400 text-sm">{{ user_name }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 第二个区块：成本和 JITA 交易数据 -->
+      <div class="grid grid-cols-2 gap-4 mb-5">
+        <!-- 成本区块 -->
+        <div class="tech-card rounded-xl p-5 relative">
+          <div class="corner-accent corner-accent-tl"></div>
+          <div class="corner-accent corner-accent-br"></div>
+          
+          <div class="flex items-center gap-2 mb-4">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center border border-cyan-500/30">
+              <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 36v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+              </svg>
+            </div>
+            <h2 class="text-cyan-100 font-semibold tracking-wide">制造成本</h2>
+          </div>
+          
+          <div class="text-center">
+            <p class="value-display text-3xl font-bold text-white glow-text-cyan">{{ cost|default('0')|format_number }}</p>
+            <p class="text-cyan-400/50 text-xs mt-1 uppercase tracking-wider">ISK</p>
+          </div>
+          
+          <div class="divider-glow my-4"></div>
+          
+          <div class="grid grid-cols-2 gap-3">
+            <div class="text-center p-2 rounded-lg bg-slate-800/50 border border-slate-700/50">
+              <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">利润</p>
+              <p class="value-display font-bold {% if profit > 0 %}text-emerald-400 glow-text-emerald{% elif profit < 0 %}text-red-400 glow-text-red{% else %}text-slate-400{% endif %}">
                 {% if profit > 0 %}+{% endif %}{{ profit|default('0')|format_number }}
               </p>
             </div>
-            <div>
-              <p class="text-sm text-gray-600 text-center">利润率</p>
-              <p class="font-mono text-center {% if profit_rate > 0 %}text-green-600{% elif profit_rate < 0 %}text-red-600{% else %}text-gray-600{% endif %}">
+            <div class="text-center p-2 rounded-lg bg-slate-800/50 border border-slate-700/50">
+              <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">利润率</p>
+              <p class="value-display font-bold {% if profit_rate > 0 %}text-emerald-400{% elif profit_rate < 0 %}text-red-400{% else %}text-slate-400{% endif %}">
                 {% if profit_rate > 0 %}+{% endif %}{{ (profit_rate * 100)|default('0')|format_number }}%
               </p>
             </div>
           </div>
         </div>
+        
+        <!-- JITA 价格区块 -->
+        <div class="tech-card rounded-xl p-5 relative">
+          <div class="corner-accent corner-accent-tl"></div>
+          <div class="corner-accent corner-accent-br"></div>
+          
+          <div class="flex items-center gap-2 mb-4">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500/20 to-purple-500/20 flex items-center justify-center border border-violet-500/30">
+              <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+              </svg>
+            </div>
+            <h2 class="text-violet-100 font-semibold tracking-wide">JITA 市场</h2>
+          </div>
+          
+          <div class="space-y-3">
+            <div class="flex items-center justify-between p-2.5 rounded-lg bg-gradient-to-r from-emerald-500/10 to-transparent border border-emerald-500/20">
+              <div class="flex items-center gap-2">
+                <div class="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
+                <span class="text-emerald-200/80 text-xs font-medium uppercase tracking-wider">Sell</span>
+              </div>
+              <span class="value-display text-emerald-300 font-semibold">{{ jita_sell|default('0')|format_number }}</span>
+            </div>
+            
+            <div class="flex items-center justify-between p-2.5 rounded-lg bg-gradient-to-r from-cyan-500/10 to-transparent border border-cyan-500/20">
+              <div class="flex items-center gap-2">
+                <div class="w-1.5 h-1.5 rounded-full bg-cyan-400"></div>
+                <span class="text-cyan-200/80 text-xs font-medium uppercase tracking-wider">Mid</span>
+              </div>
+              <span class="value-display text-cyan-300 font-semibold">{{ jita_mid|default('0')|format_number }}</span>
+            </div>
+            
+            <div class="flex items-center justify-between p-2.5 rounded-lg bg-gradient-to-r from-amber-500/10 to-transparent border border-amber-500/20">
+              <div class="flex items-center gap-2">
+                <div class="w-1.5 h-1.5 rounded-full bg-amber-400"></div>
+                <span class="text-amber-200/80 text-xs font-medium uppercase tracking-wider">Buy</span>
+              </div>
+              <span class="value-display text-amber-300 font-semibold">{{ jita_buy|default('0')|format_number }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 第三个区块：饼图和图例 -->
+      <div class="tech-card rounded-xl p-6 relative">
+        <div class="corner-accent corner-accent-tl"></div>
+        <div class="corner-accent corner-accent-tr"></div>
+        <div class="corner-accent corner-accent-bl"></div>
+        <div class="corner-accent corner-accent-br"></div>
+        
+        <div class="flex items-center gap-2 mb-5">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20 flex items-center justify-center border border-orange-500/30">
+            <svg class="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"></path>
+            </svg>
+          </div>
+          <h2 class="text-orange-100 font-semibold tracking-wide">成本构成分析</h2>
+        </div>
+        
+        <div class="flex flex-col sm:flex-row items-center gap-6">
+          <!-- 饼图容器 -->
+          <div class="relative flex-shrink-0">
+            <div class="absolute inset-0 rounded-full bg-gradient-to-br from-cyan-500/10 to-violet-500/10 blur-xl"></div>
+            <canvas id="costChart" width="220" height="220" class="relative z-10"></canvas>
+          </div>
+          
+          <!-- 图例容器 -->
+          <div id="chartLegend" class="flex-1 w-full space-y-2.5">
+            <!-- 图例将由 JavaScript 动态生成 -->
+          </div>
+        </div>
       </div>
       
-      <!-- JITA 价格区块 -->
-      <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-sm">
-        <h2 class="text-xl font-bold mb-4 text-center">JITA</h2>
-        <div class="space-y-2">
-          <p class="font-mono text-center">SELL: {{ jita_sell|default('0')|format_number }}</p>
-          <p class="font-mono text-center">MID: {{ jita_mid|default('0')|format_number }}</p>
-          <p class="font-mono text-center">BUY: {{ jita_buy|default('0')|format_number }}</p>
+      <!-- 页脚 -->
+      <div class="text-center mt-6 pb-4">
+        <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-900/80 border border-slate-700/50">
+          <div class="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></div>
+          <p class="text-slate-400 text-xs tracking-wider">
+            <span class="text-cyan-400/80">实验型工业核心 mk.1</span>
+            <span class="mx-2 text-slate-600">|</span>
+            <span>成本计算系统</span>
+            <span class="mx-2 text-slate-600">|</span>
+            <span class="text-violet-400/80">kahunaBot</span>
+          </p>
         </div>
       </div>
     </div>
-  </div>
-
-  <!-- 第三个区块：饼图和图例 -->
-  <div class="container mx-auto px-4 max-w-lg bg-white rounded-lg shadow-md p-6">
-    <div class="flex justify-between items-center">
-      <div>
-        <canvas id="costChart" width="200" height="200"></canvas>
-      </div>
-      <div id="chartLegend" class="flex flex-col justify-center space-y-4 text-sm">
-        <!-- 图例将由 JavaScript 动态生成 -->
-      </div>
-    </div>
-  </div>
-  <!-- 移动到最外层的页脚 -->
-  <div class="text-center text-gray-500 text-sm mt-4">
-      <p>实验型工业核心mk.1 - 成本计算系统 - kahunaBot</p>
   </div>
 
   <script>
@@ -98,23 +354,65 @@
       const labels = [{% for component in cost_components %}'{{ component.name }}'{% if not loop.last %}, {% endif %}{% endfor %}];
       const data = [{% for component in cost_components %}{{ component.value }}{% if not loop.last %}, {% endif %}{% endfor %}];
       
+      // 科幻主题配色方案
+      const sciFiColors = [
+        '#00d4ff', // cyan
+        '#3b82f6', // blue
+        '#8b5cf6', // violet
+        '#f59e0b', // amber
+        '#10b981', // emerald
+        '#ef4444', // red
+        '#ec4899', // pink
+        '#06b6d4', // cyan-dark
+        '#f97316', // orange
+        '#84cc16', // lime
+      ];
+      
       // 创建饼图
       const costChart = new Chart(ctx, {
-        type: 'pie',
+        type: 'doughnut',
         data: {
           labels: labels,
           datasets: [{
             data: data,
-            // 不指定颜色，让 Chart.js 自动分配
-            borderWidth: 1
+            backgroundColor: sciFiColors.slice(0, labels.length),
+            borderWidth: 2,
+            borderColor: '#111827',
+            hoverBorderWidth: 3,
+            hoverBorderColor: '#00d4ff',
           }]
         },
         options: {
           responsive: true,
-          animation: false,
+          maintainAspectRatio: true,
+          cutout: '55%',
+          animation: {
+            animateRotate: true,
+            animateScale: true,
+            duration: 1000,
+            easing: 'easeOutQuart'
+          },
           plugins: {
             legend: {
               display: false
+            },
+            tooltip: {
+              backgroundColor: 'rgba(17, 24, 39, 0.95)',
+              titleColor: '#00d4ff',
+              bodyColor: '#e2e8f0',
+              borderColor: 'rgba(0, 212, 255, 0.3)',
+              borderWidth: 1,
+              padding: 12,
+              cornerRadius: 8,
+              displayColors: true,
+              callbacks: {
+                label: function(context) {
+                  const value = context.raw;
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const percentage = ((value / total) * 100).toFixed(1);
+                  return ` ${formatNumber(value)} (${percentage}%)`;
+                }
+              }
             }
           }
         }
@@ -144,22 +442,46 @@
       labels.forEach((label, index) => {
         const value = data[index];
         const percentage = ((value / total) * 100).toFixed(1);
+        const color = chartColors[index];
         
         const legendItem = document.createElement('div');
-        legendItem.className = 'flex items-center justify-between w-full';
+        legendItem.className = 'flex items-center justify-between p-2.5 rounded-lg bg-slate-800/40 border border-slate-700/30 hover:border-cyan-500/30 hover:bg-slate-800/60 transition-all duration-200 cursor-pointer group';
         legendItem.innerHTML = `
-          <div class="flex items-center">
-            <div class="w-4 h-4 mr-2" style="background-color: ${chartColors[index]}"></div>
-            <span>${label}</span>
+          <div class="flex items-center gap-3">
+            <div class="w-3 h-3 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]" style="background-color: ${color}; box-shadow: 0 0 8px ${color}80;"></div>
+            <span class="text-slate-300 text-sm font-medium group-hover:text-cyan-200 transition-colors">${label}</span>
           </div>
-          <div class="font-mono ml-2">
-            ${formatNumber(value)} (${percentage}%)
+          <div class="flex items-center gap-3">
+            <span class="value-display text-cyan-200/80 text-sm">${formatNumber(value)}</span>
+            <span class="value-display text-slate-500 text-xs w-12 text-right">${percentage}%</span>
           </div>
         `;
+        
+        // 添加悬停交互
+        legendItem.addEventListener('mouseenter', () => {
+          costChart.setActiveElements([{ datasetIndex: 0, index: index }]);
+          costChart.update('none');
+        });
+        
+        legendItem.addEventListener('mouseleave', () => {
+          costChart.setActiveElements([]);
+          costChart.update('none');
+        });
+        
         legendContainer.appendChild(legendItem);
       });
+      
+      // 添加饼图中心文字
+      const centerText = document.createElement('div');
+      centerText.className = 'absolute inset-0 flex items-center justify-center pointer-events-none';
+      centerText.innerHTML = `
+        <div class="text-center">
+          <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">总成本</p>
+          <p class="value-display text-cyan-300 font-bold text-lg">${formatNumber(total)}</p>
+        </div>
+      `;
+      costChart.canvas.parentElement.appendChild(centerText);
     });
   </script>
-</div>
 </body>
 </html>
