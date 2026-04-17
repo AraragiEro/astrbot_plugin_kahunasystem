@@ -75,11 +75,13 @@ async def api_run(
     )
 
 
-async def api_price_detail(host: str, type_name: str):
+async def api_price_detail(host: str, type_name: str, access_token: str = None):
     return await api_run(
         host,
         "market_price_detail",
         {"type_name": type_name},
+        None,
+        access_token,
     )
 
 

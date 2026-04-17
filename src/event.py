@@ -50,11 +50,30 @@ class Event:
             item_name = require_str
             quantity = 1
 
+        # 先获取 access_token
+        try:
+            info_res = await api_info(
+                Event.config["kahunasystem_host"],
+                "market_price_detail",
+            )
+        except Exception as e:
+            logger.error(f"获取token异常: {e}")
+            return event.plain_result("获取访问令牌失败，请稍后再试。")
+
+        if info_res.get("status") != 200:
+            message = info_res.get("message", "获取访问令牌失败")
+            return event.plain_result(f"获取访问令牌失败: {message}")
+
+        access_token = info_res.get("data", {}).get("access_token")
+        if not access_token:
+            return event.plain_result("获取访问令牌失败，请稍后再试。")
+
         # 从本地 API 获取价格与历史数据
         try:
             res_json = await api_price_detail(
                 Event.config["kahunasystem_host"],
                 item_name,
+                access_token,
             )
         except Exception as e:
             logger.error(f"价格接口请求异常: {e}")
