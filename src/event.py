@@ -98,11 +98,16 @@ class Event:
 
         quantity_str = ""
 
-        res_path = await render_price_res_pic(
-            data,
-            chart_history_data,
-            order_data,
-        )
+        try:
+            res_path = await render_price_res_pic(
+                data,
+                chart_history_data,
+                order_data,
+            )
+        except Exception as e:
+            logger.error(f"渲染价格图片失败: {e}")
+            return event.plain_result("价格查询成功，但图片渲染失败，请稍后再试。")
+
         chain = [Image.fromFileSystem(res_path)]
         if quantity > 1:
             quantity_str += f"--------鎬昏--------\n"
@@ -166,7 +171,11 @@ class Event:
                     return event.plain_result(f"物品 {type_name} 未找到成本数据。")
 
                 detail_dict = res_json.get("data", {}) or {}
-                pic_path = await render_single_cost_pic(detail_dict)
+                try:
+                    pic_path = await render_single_cost_pic(detail_dict)
+                except Exception as e:
+                    logger.error(f"渲染成本图片失败: {e}")
+                    return event.plain_result("成本查询成功，但图片渲染失败，请稍后再试。")
 
                 chain = [Image.fromFileSystem(pic_path)]
                 return event.chain_result(chain)

@@ -54,7 +54,7 @@ class PictureRender():
             os.makedirs(TMP_PATH)
 
     @classmethod
-    async def render_pic(cls, output_path: str, html_content: str, width: int = 800, height: int = 800, wait_time: int = 5):
+    async def render_pic(cls, output_path: str, html_content: str, width: int = 800, height: int = 800, wait_time: int = 30):
         # 将HTML内容保存到临时文件
         html_file_path = os.path.join(TMP_PATH, "temp_render.html")
         with open(html_file_path, 'w', encoding='utf-8') as f:
@@ -91,8 +91,11 @@ class PictureRender():
             # 设置页面内容
             await page.setContent(html_content)
 
-            # 等待字体加载完成
-            await page.waitForFunction('document.fonts.ready', {'timeout': wait_time * 1000})
+            # 等待字体加载完成（非关键步骤，超时不阻断渲染）
+            try:
+                await page.waitForFunction('document.fonts.ready', {'timeout': wait_time * 1000})
+            except Exception as font_e:
+                logger.warning(f"等待字体加载超时或失败: {font_e}，继续渲染")
 
             # 检查是否有Chart.js图表，如果有则等待图表渲染完成
             has_chart = await page.evaluate('typeof Chart !== "undefined" && document.getElementById("costChart") !== null')
@@ -120,24 +123,24 @@ class PictureRender():
             else:
                 # 如果没有图表，等待DOM内容加载完成
                 await page.waitForFunction('document.readyState === "complete"')
-                # 额外等待一小段时间确保CSS渲染完成
-                await asyncio.sleep(1)
+                # 额外等待一段时间确保CSS渲染完成
+                await asyncio.sleep(min(wait_time, 10))
 
             # 截图
             await page.screenshot({'path': output_path, 'fullPage': True})
+            return output_path
         except Exception as e:
             logger.error(f"渲染过程发生错误: {e}")
             # 记录更详细的错误信息
             logger.error(f"详细错误: {str(e)}")
             logger.error(f"错误类型: {type(e).__name__}")
+            return None
         finally:
             try:
                 if 'browser' in locals() and browser:
                     await browser.close()
             except Exception as close_error:
                 logger.error(f"关闭浏览器时发生错误: {close_error}")
-
-        return output_path
 
 
     @classmethod
