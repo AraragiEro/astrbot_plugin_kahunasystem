@@ -88,8 +88,8 @@ class PictureRender():
         await page.setViewport({'width': width, 'height': height})
 
         try:
-            # 设置页面内容
-            await page.setContent(html_content)
+            # 设置页面内容（增加超时，避免大页面或外部资源加载导致默认30秒超时）
+            await page.setContent(html_content, {'timeout': wait_time * 1000})
 
             # 等待字体加载完成（非关键步骤，超时不阻断渲染）
             try:
@@ -122,7 +122,7 @@ class PictureRender():
                     await asyncio.sleep(wait_time)  # 备用等待机制
             else:
                 # 如果没有图表，等待DOM内容加载完成
-                await page.waitForFunction('document.readyState === "complete"')
+                await page.waitForFunction('document.readyState === "complete"', {'timeout': wait_time * 1000})
                 # 额外等待一段时间确保CSS渲染完成
                 await asyncio.sleep(min(wait_time, 10))
 
