@@ -88,12 +88,21 @@ class PictureRender():
 
     @classmethod
     def _replace_cdn_with_local(cls, html_content: str) -> str:
-        """将 HTML 中的 CDN URL 替换为本地 file:// 路径，消除网络依赖。"""
+        """将 HTML 中的外部 <script src> 替换为内联 <script>，避免 setContent 后网络加载失败。"""
         for cdn_url, filename in JS_RESOURCES.items():
             local_path = os.path.join(js_path, filename)
-            if os.path.exists(local_path):
-                file_url = 'file:///' + local_path.replace('\\', '/')
-                html_content = html_content.replace(cdn_url, file_url)
+            if not os.path.exists(local_path):
+                continue
+            try:
+                with open(local_path, 'r', encoding='utf-8') as f:
+                    js_content = f.read()
+                old_tag = f'<script src="{cdn_url}"></script>'
+                new_tag = f'<script>{js_content}</script>'
+                if old_tag in html_content:
+                    html_content = html_content.replace(old_tag, new_tag)
+                    logger.debug(f"已内联 JS: {filename}")
+            except Exception as e:
+                logger.warning(f"内联 JS 失败 {filename}: {e}")
         return html_content
 
     @classmethod
