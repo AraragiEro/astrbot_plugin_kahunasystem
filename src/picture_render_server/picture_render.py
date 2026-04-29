@@ -24,6 +24,17 @@ RESOURCE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../r
 template_path = os.path.join(RESOURCE_PATH, "templates")
 # CSS目录
 css_path = os.path.join(RESOURCE_PATH, "css")
+# JS目录
+js_path = os.path.join(RESOURCE_PATH, "js")
+
+# 需要本地化的外部 CDN 资源（避免渲染时因网络加载超时）
+JS_RESOURCES = {
+    'https://cdn.jsdmirror.com/npm/@tailwindcss/browser@4': 'tailwindcss-browser.js',
+    'https://cdn.jsdmirror.com/npm/chart.js': 'chart.js',
+    'https://cdn.jsdmirror.com/npm/chartjs-adapter-date-fns': 'chartjs-adapter-date-fns.js',
+    'https://d3js.org/d3.v7.min.js': 'd3.v7.min.js',
+    'https://unpkg.com/d3-sankey@0.12.3/dist/d3-sankey.min.js': 'd3-sankey.min.js',
+}
 
 def format_number(value):
     """将数字格式化为带千位分隔符的字符串"""
@@ -54,7 +65,43 @@ class PictureRender():
             os.makedirs(TMP_PATH)
 
     @classmethod
+    async def _ensure_local_js_resources(cls):
+        """将外部 CDN JS 资源异步下载到本地，避免渲染时因网络加载超时。"""
+        if not os.path.exists(js_path):
+            os.makedirs(js_path)
+        for cdn_url, filename in JS_RESOURCES.items():
+            local_path = os.path.join(js_path, filename)
+            if os.path.exists(local_path):
+                continue
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(cdn_url, ssl=False, timeout=aiohttp.ClientTimeout(total=30)) as response:
+                        if response.status == 200:
+                            content = await response.read()
+                            with open(local_path, 'wb') as f:
+                                f.write(content)
+                            logger.info(f"成功缓存 JS 资源: {filename}")
+                        else:
+                            logger.warning(f"下载 JS 资源失败 {cdn_url}: HTTP {response.status}")
+            except Exception as e:
+                logger.warning(f"下载 JS 资源异常 {cdn_url}: {e}")
+
+    @classmethod
+    def _replace_cdn_with_local(cls, html_content: str) -> str:
+        """将 HTML 中的 CDN URL 替换为本地 file:// 路径，消除网络依赖。"""
+        for cdn_url, filename in JS_RESOURCES.items():
+            local_path = os.path.join(js_path, filename)
+            if os.path.exists(local_path):
+                file_url = 'file:///' + local_path.replace('\\', '/')
+                html_content = html_content.replace(cdn_url, file_url)
+        return html_content
+
+    @classmethod
     async def render_pic(cls, output_path: str, html_content: str, width: int = 800, height: int = 800, wait_time: int = 30):
+        # 先确保外部 JS 资源已缓存到本地，避免渲染时因网络加载超时
+        await cls._ensure_local_js_resources()
+        html_content = cls._replace_cdn_with_local(html_content)
+
         # 将HTML内容保存到临时文件
         html_file_path = os.path.join(TMP_PATH, "temp_render.html")
         with open(html_file_path, 'w', encoding='utf-8') as f:
@@ -88,14 +135,11 @@ class PictureRender():
         await page.setViewport({'width': width, 'height': height})
 
         try:
-            # 设置页面内容（增加超时，避免大页面或外部资源加载导致默认30秒超时）
-            await page.setContent(html_content, {'timeout': wait_time * 1000})
+            # 设置页面内容（旧版 pyppeteer 的 setContent 不支持 options 参数）
+            await page.setContent(html_content)
 
-            # 等待字体加载完成（非关键步骤，超时不阻断渲染）
-            try:
-                await page.waitForFunction('document.fonts.ready', {'timeout': wait_time * 1000})
-            except Exception as font_e:
-                logger.warning(f"等待字体加载超时或失败: {font_e}，继续渲染")
+            # 字体加载为非关键步骤，改用固定等待避免 waitForFunction 超时
+            await asyncio.sleep(2)
 
             # 检查是否有Chart.js图表，如果有则等待图表渲染完成
             has_chart = await page.evaluate('typeof Chart !== "undefined" && document.getElementById("costChart") !== null')
@@ -116,14 +160,12 @@ class PictureRender():
 
                 # 等待图表渲染完成或超时
                 try:
-                    await page.waitForFunction('window.chartRendered === true', {'timeout': wait_time * 1000})
+                    await page.waitForFunction('window.chartRendered === true')
                 except Exception as e:
                     logger.warning(f"等待图表渲染超时: {e}，使用备用等待时间")
                     await asyncio.sleep(wait_time)  # 备用等待机制
             else:
-                # 如果没有图表，等待DOM内容加载完成
-                await page.waitForFunction('document.readyState === "complete"', {'timeout': wait_time * 1000})
-                # 额外等待一段时间确保CSS渲染完成
+                # 如果没有图表，固定等待确保DOM和CSS渲染完成
                 await asyncio.sleep(min(wait_time, 10))
 
             # 截图
