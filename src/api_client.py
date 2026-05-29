@@ -47,14 +47,6 @@ async def post_json(host: str, path: str, payload: dict, timeout: int):
             return await resp.json()
 
 
-async def api_list(host: str):
-    return await get_json(
-        host,
-        "/api/astrbot/kahunasystem/api/list",
-        timeout=10,
-    )
-
-
 async def api_info(host: str, api_id: str):
     return await post_json(
         host,
@@ -98,14 +90,6 @@ async def api_type_cost(
         },
         None,
         access_token,
-    )
-
-
-async def api_fuzz_type_name(host: str, type_name: str):
-    return await api_run(
-        host,
-        "market_fuzz_type_name",
-        {"type_name": type_name},
     )
 
 

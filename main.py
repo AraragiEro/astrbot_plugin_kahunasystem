@@ -1,4 +1,4 @@
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
+from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 from astrbot.api import AstrBotConfig
@@ -6,17 +6,8 @@ import json
 from pathlib import Path
 
 from .src.event import Event
-from .src.tools.eve_tools import (
-    ApiInfoTool,
-    ApiListTool,
-    ZkbUrlData,
-    Name2ID,
-    eve_error,
-    eve_json_result
-)
 from .src.api_client import (
     get_json,
-    api_run,
     api_get_reward,
     api_cj_get_active_reward,
     api_cj_get_paps_status,
@@ -37,10 +28,7 @@ class MyPlugin(Star):
         super().__init__(context)
         self.config = config
         Event.config = self.config
-        self.context.add_llm_tools(ApiListTool())
-        self.context.add_llm_tools(ApiInfoTool())
-        self.context.add_llm_tools(ZkbUrlData())
-        self.context.add_llm_tools(Name2ID())
+        # MCP 中间件已接管所有功能工具，插件只保留指令交互
 
     async def initialize(self):
         """可选的异步初始化方法。"""
@@ -144,32 +132,6 @@ class MyPlugin(Star):
 
     async def terminate(self):
         """可选的异步销毁方法。"""
-
-
-    @filter.llm_tool(name="kahunasystem_apirun")
-    async def kahunasystem_apirun(self, event: AstrMessageEvent, api_id: str, access_token: str, eve_args: dict) -> MessageEventResult:
-        """运行 kahunasystem 的 API。
-        
-        Args:
-            api_id(string): API 编号
-            access_token(string): 访问令牌
-            eve_args(dict): 其他参数，传给后端 API
-        """
-        try:
-            if api_id == "market_type_cost":
-                plan_name = self.config.get("cost_plan", None)
-                user_name = self.config.get("cost_username", None)
-                eve_args.update({
-                    "plan_name": plan_name,
-                    "user_name": user_name
-                })
-            res_json = await api_run(self.config["kahunasystem_host"], api_id, eve_args, event.get_sender_id(), access_token)
-        except Exception as e:
-            return eve_error(f"api run request failed: {e}")
-        if res_json.get("status") == 400:
-            message = res_json.get("message", "api run failed")
-            return eve_error(message)
-        return eve_json_result(res_json)
 
     # @filter.command_group("cj")
     # def cj(self):
