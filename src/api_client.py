@@ -77,6 +77,16 @@ async def api_price_detail(host: str, type_name: str, access_token: str = None):
     )
 
 
+async def api_frt_price_detail(host: str, type_name: str, access_token: str = None):
+    return await api_run(
+        host,
+        "market_price_detail",
+        {"type_name": type_name, "market_zone": "frt"},
+        None,
+        access_token,
+    )
+
+
 async def api_type_cost(
     host: str, type_name: str, user_name: str, plan_name: str, access_token: str = None
 ):

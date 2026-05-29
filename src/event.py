@@ -9,7 +9,7 @@ from .picture_render_server.render_template import (
     render_price_res_pic,
     render_single_cost_pic,
 )
-from .api_client import api_price_detail, api_type_cost, api_qq_bind, api_info
+from .api_client import api_price_detail, api_frt_price_detail, api_type_cost, api_qq_bind, api_info
 
 calculate_lock = asyncio.Lock()
 
@@ -111,6 +111,84 @@ class Event:
         chain = [Image.fromFileSystem(res_path)]
         if quantity > 1:
             quantity_str += f"--------鎬昏--------\n"
+            min_sell = data.get("sell", 0)
+            max_buy = data.get("buy", 0)
+            mid_price = data.get("mid", 0)
+            quantity_str += f"sell: {min_sell * quantity:,}\n"
+            quantity_str += f"buy: {max_buy * quantity:,}\n"
+            quantity_str += f"mid: {mid_price * quantity:,}\n"
+            chain += [Plain(quantity_str)]
+        return event.chain_result(chain)
+
+    @staticmethod
+    async def frt_price(event: AstrMessageEvent, require_str: str):
+        """查询 FRT 市场价格。"""
+        message_str = event.get_message_str()
+        if message_str.split(" ")[-1].isdigit():
+            quantity = int(message_str.split(" ")[-1])
+            item_name = " ".join(message_str.split(" ")[1:-1])
+        else:
+            item_name = require_str
+            quantity = 1
+
+        try:
+            info_res = await api_info(
+                Event.config["kahunasystem_host"],
+                "market_price_detail",
+            )
+        except Exception as e:
+            logger.error(f"获取token异常: {e}")
+            return event.plain_result("获取访问令牌失败，请稍后再试。")
+
+        if info_res.get("status") != 200:
+            message = info_res.get("message", "获取访问令牌失败")
+            return event.plain_result(f"获取访问令牌失败: {message}")
+
+        access_token = info_res.get("data", {}).get("access_token")
+        if not access_token:
+            return event.plain_result("获取访问令牌失败，请稍后再试。")
+
+        try:
+            res_json = await api_frt_price_detail(
+                Event.config["kahunasystem_host"],
+                item_name,
+                access_token,
+            )
+        except Exception as e:
+            logger.error(f"FRT价格接口请求异常: {e}")
+            if isinstance(e, ValueError):
+                return event.plain_result(f"FRT价格接口请求失败: {e}")
+            return event.plain_result("FRT价格接口请求异常，请稍后再试。")
+
+        is_price = res_json.get("is_price", False)
+        if not is_price:
+            fuzz_list = res_json.get("data", []) or []
+            if not fuzz_list:
+                return event.plain_result(f"物品 {item_name} 未找到。")
+            fuzz_reply = f"物品 {item_name} 不存在于数据库\n你是否在寻找:\n"
+            fuzz_reply += "\n".join(fuzz_list)
+            return event.plain_result(fuzz_reply)
+
+        data = res_json.get("data", {}) or {}
+        history_data = data.get("history_data", []) or []
+        chart_history_data = [[row[0], row[1]] for row in history_data]
+        order_data = data.get("orderdata") or {"buy_order": {}, "sell_order": {}}
+
+        quantity_str = ""
+
+        try:
+            res_path = await render_price_res_pic(
+                data,
+                chart_history_data,
+                order_data,
+            )
+        except Exception as e:
+            logger.error(f"渲染价格图片失败: {e}")
+            return event.plain_result("FRT价格查询成功，但图片渲染失败，请稍后再试。")
+
+        chain = [Image.fromFileSystem(res_path)]
+        if quantity > 1:
+            quantity_str += f"--------总 计--------\n"
             min_sell = data.get("sell", 0)
             max_buy = data.get("buy", 0)
             mid_price = data.get("mid", 0)

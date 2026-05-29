@@ -114,6 +114,11 @@ class MyPlugin(Star):
         """查询 jita 市场价格。"""
         yield await Event.oprice(event, require_str)
 
+    @filter.command("frt")
+    async def frtprice(self, event: AstrMessageEvent, require_str: str):
+        """查询 FRT 市场价格。"""
+        yield await Event.frt_price(event, require_str)
+
     @filter.command("成本", alias={"cost"})
     async def costdetail(self, event: AstrMessageEvent, product: str, username: str = None, plan_name: str = None):
         """查询成本详情。"""
