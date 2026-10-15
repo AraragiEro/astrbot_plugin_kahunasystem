@@ -2,6 +2,23 @@ import json
 import aiohttp
 from astrbot.api import logger
 
+# 服务间认证密钥：由 main.py 在插件初始化时通过 set_service_api_key() 注入。
+# kahunabot 无法对 QQ 机器人做交互式登录，因此改用共享服务密钥（请求头 X-Internal-API-Key）。
+_SERVICE_API_KEY = ""
+
+
+def set_service_api_key(api_key: str):
+    """注入服务间认证密钥（应与 kahunabot config.toml 的 [SERVICE] API_KEY 一致）"""
+    global _SERVICE_API_KEY
+    _SERVICE_API_KEY = (api_key or "").strip()
+
+
+def _build_headers() -> dict:
+    """构造请求头；未配置密钥时不携带该头（服务端将按未授权处理）"""
+    if _SERVICE_API_KEY:
+        return {"X-Internal-API-Key": _SERVICE_API_KEY}
+    return {}
+
 
 async def get_json(host: str, path: str, timeout: int):
     if host.startswith("http://") or host.startswith("https://"):
@@ -12,6 +29,7 @@ async def get_json(host: str, path: str, timeout: int):
     async with aiohttp.ClientSession() as session:
         async with session.get(
             api_url,
+            headers=_build_headers(),
             timeout=aiohttp.ClientTimeout(total=timeout),
         ) as resp:
             if resp.status != 200:
@@ -30,6 +48,7 @@ async def post_json(host: str, path: str, payload: dict, timeout: int):
         async with session.post(
             api_url,
             json=payload,
+            headers=_build_headers(),
             timeout=aiohttp.ClientTimeout(total=timeout),
         ) as resp:
             if resp.status != 200:
@@ -139,104 +158,6 @@ async def api_qq_vip_state(host: str, qq):
                 data = {}
             data.setdefault("status", resp.status)
             return data
-
-
-async def api_cj_set_active(host: str, active: bool):
-    return await post_json(
-        host,
-        "/api/astrbot/kahunasystem/choujiang/set_active",
-        {"active": active},
-        timeout=10,
-    )
-
-
-async def api_cj_init(host: str):
-    return await post_json(
-        host,
-        "/api/astrbot/kahunasystem/choujiang/init",
-        {},
-        timeout=20,
-    )
-
-
-async def api_cj_next_round(host: str):
-    return await post_json(
-        host,
-        "/api/astrbot/kahunasystem/choujiang/next_round",
-        {},
-        timeout=20,
-    )
-
-
-async def api_cj_set_round(host: str, round_id: int):
-    return await post_json(
-        host,
-        "/api/astrbot/kahunasystem/choujiang/set_round",
-        {"round_id": round_id},
-        timeout=20,
-    )
-
-
-async def api_cj_run(host: str):
-    return await post_json(
-        host,
-        "/api/astrbot/kahunasystem/choujiang/run",
-        {},
-        timeout=120,
-    )
-
-
-async def api_cj_save_state(host: str):
-    return await post_json(
-        host,
-        "/api/astrbot/kahunasystem/choujiang/save_state",
-        {},
-        timeout=20,
-    )
-
-
-async def api_cj_set_user_paps_used(host: str, name: str, paps: int):
-    return await post_json(
-        host,
-        "/api/astrbot/kahunasystem/choujiang/set_user_paps_used",
-        {"name": name, "paps": paps},
-        timeout=20,
-    )
-
-
-async def api_cj_get_paps_status(host: str, name: str):
-    return await post_json(
-        host,
-        "/api/astrbot/kahunasystem/choujiang/get_paps_status",
-        {"name": name},
-        timeout=20,
-    )
-
-
-async def api_cj_get_tmp_result(host: str):
-    return await post_json(
-        host,
-        "/api/astrbot/kahunasystem/choujiang/get_tmp_result",
-        {},
-        timeout=20,
-    )
-
-
-async def api_get_reward(host: str):
-    return await post_json(
-        host,
-        "/api/astrbot/kahunasystem/choujiang/get_reward",
-        {},
-        timeout=20,
-    )
-
-
-async def api_cj_get_active_reward(host: str):
-    return await get_json(
-        host,
-        "/api/astrbot/kahunasystem/choujiang/get_active_reward",
-        timeout=20,
-    )
 
 
 async def api_zkb_get_character_data(host: str, character_id: int):

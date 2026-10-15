@@ -37,6 +37,67 @@ def parse_allow_group_ids(raw_value):
     return set()
 
 
+def _to_float(value, default: float = 0.0) -> float:
+    """安全转换浮点数，避免接口返回字符串或 None 时崩溃。"""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def price_text_fallback(data: dict, quantity: int, source: str) -> str:
+    """图片渲染不可用时的纯文本价格摘要。"""
+    item_name = (
+        data.get("name_zh")
+        or data.get("matched_name")
+        or data.get("name")
+        or str(data.get("type_id", ""))
+    )
+    buy = _to_float(data.get("buy"))
+    mid = _to_float(data.get("mid"))
+    sell = _to_float(data.get("sell"))
+
+    lines = [
+        f"【{source} 价格】{item_name}（图片渲染不可用，以下为文本结果）",
+        f"buy: {buy:,.2f}",
+        f"mid: {mid:,.2f}",
+        f"sell: {sell:,.2f}",
+    ]
+    if quantity > 1:
+        lines.append(f"--------总计 x{quantity}--------")
+        lines.append(f"buy: {buy * quantity:,.2f}")
+        lines.append(f"mid: {mid * quantity:,.2f}")
+        lines.append(f"sell: {sell * quantity:,.2f}")
+    return "\n".join(lines)
+
+
+def cost_text_fallback(detail: dict) -> str:
+    """图片渲染不可用时的纯文本成本摘要。"""
+    item_name = detail.get("item_name") or str(detail.get("type_id", ""))
+    item_name_cn = detail.get("item_name_cn") or item_name
+    total_cost = _to_float(detail.get("total_cost"))
+    market_detail = detail.get("market_detail", []) or []
+    jita_buy = _to_float(market_detail[0]) if len(market_detail) > 0 else 0.0
+    jita_mid = _to_float(market_detail[1]) if len(market_detail) > 1 else 0.0
+    jita_sell = _to_float(market_detail[2]) if len(market_detail) > 2 else 0.0
+    profit = jita_sell - total_cost
+    profit_rate = (profit / total_cost * 100) if total_cost else 0.0
+
+    lines = [
+        f"【成本】{item_name_cn}（图片渲染不可用，以下为文本结果）",
+        f"总成本: {total_cost:,.2f}",
+        f"Jita buy: {jita_buy:,.2f}",
+        f"Jita mid: {jita_mid:,.2f}",
+        f"Jita sell: {jita_sell:,.2f}",
+        f"利润: {profit:,.2f}（{profit_rate:.2f}%）",
+    ]
+    user_name = detail.get("user_name")
+    plan_name = detail.get("plan_name")
+    if user_name or plan_name:
+        lines.append(f"方案: {user_name or '-'} / {plan_name or '-'}")
+    return "\n".join(lines)
+
+
 class Event:
     config = None
 
@@ -106,11 +167,11 @@ class Event:
             )
         except Exception as e:
             logger.error(f"渲染价格图片失败: {e}")
-            return event.plain_result("价格查询成功，但图片渲染失败，请稍后再试。")
+            return event.plain_result(price_text_fallback(data, quantity, "Jita"))
 
         chain = [Image.fromFileSystem(res_path)]
         if quantity > 1:
-            quantity_str += f"--------鎬昏--------\n"
+            quantity_str += f"--------总计--------\n"
             min_sell = data.get("sell", 0)
             max_buy = data.get("buy", 0)
             mid_price = data.get("mid", 0)
@@ -184,11 +245,11 @@ class Event:
             )
         except Exception as e:
             logger.error(f"渲染价格图片失败: {e}")
-            return event.plain_result("FRT价格查询成功，但图片渲染失败，请稍后再试。")
+            return event.plain_result(price_text_fallback(data, quantity, "FRT"))
 
         chain = [Image.fromFileSystem(res_path)]
         if quantity > 1:
-            quantity_str += f"--------总 计--------\n"
+            quantity_str += f"--------总计--------\n"
             min_sell = data.get("sell", 0)
             max_buy = data.get("buy", 0)
             mid_price = data.get("mid", 0)
@@ -253,7 +314,7 @@ class Event:
                     pic_path = await render_single_cost_pic(detail_dict)
                 except Exception as e:
                     logger.error(f"渲染成本图片失败: {e}")
-                    return event.plain_result("成本查询成功，但图片渲染失败，请稍后再试。")
+                    return event.plain_result(cost_text_fallback(detail_dict))
 
                 chain = [Image.fromFileSystem(pic_path)]
                 return event.chain_result(chain)

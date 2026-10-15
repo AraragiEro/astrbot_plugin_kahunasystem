@@ -18,5 +18,9 @@
     "vip_white_session_ids": {
       "description": "跳过vip判断的session id列表",
       "type": "list"
+    },
+    "service_api_key": {
+      "description": "服务间认证密钥（需与 kahunabot config.toml 的 [SERVICE] API_KEY 一致）",
+      "type": "string"
     }
   }

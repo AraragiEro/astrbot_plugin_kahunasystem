@@ -1,34 +1,57 @@
-﻿# import logger
+# import logger
 import json
 
 import aiohttp
-import imgkit
 import os
 import sys
-import jinja2  # 娣诲姞Jinja2瀵煎叆
+import jinja2  # 添加Jinja2导入
 import requests
 import base64
 import asyncio
 from datetime import datetime, timedelta
-from pyppeteer import launch
 import math
 from astrbot.core import logger
 
 from .picture_render import PictureRender, TMP_PATH, template_path
 
 def format_number(value):
-    """灏嗘暟瀛楁牸寮忓寲涓哄甫鍗冧綅鍒嗛殧绗︾殑瀛楃涓?"""
+    """将数字格式化为带千位分隔符的字符串"""
     try:
-        # 杞崲涓烘诞鐐规暟
+        # 转换为浮点数
         num = float(value)
-        # 濡傛灉鏄暣鏁帮紝涓嶆樉绀哄皬鏁伴儴鍒?
+        # 如果是整数，不显示小数部分
         if num.is_integer():
             return "{:,}".format(int(num))
-        # 鍚﹀垯淇濈暀涓や綅灏忔暟
+        # 否则保留两位小数
         return "{:,.2f}".format(num)
     except (ValueError, TypeError):
-        # 濡傛灉鏃犳硶杞崲涓烘暟瀛楋紝杩斿洖鍘熷€?
+        # 如果无法转换为数字，返回原值
         return value
+
+
+async def render_html_to_image(html_content: str, output_path: str, width: int = 550, height: int = 720, wait_time: int = 120, crop_align: str = "center"):
+    """把渲染好的 HTML 转成图片。
+
+    优先使用 AstrBot 内置的文转图服务（远程渲染，插件无需本地浏览器依赖），
+    并按 ``width`` 裁掉远程固定 800px 视口带来的多余背景；
+    远程不可用时回退到本地 pyppeteer（若该环境仍可用）。
+
+    :param crop_align: 内容对齐方式，``center``（价格模板）或 ``left``（成本模板）
+    """
+    try:
+        pic_path = await PictureRender.render_pic_remote(html_content)
+        return PictureRender.crop_to_width(pic_path, width, align=crop_align)
+    except Exception as e:
+        logger.warning(f"文转图服务渲染失败，尝试本地渲染: {e}")
+
+    try:
+        return await PictureRender.render_pic(
+            output_path, html_content, width=width, height=height, wait_time=wait_time
+        )
+    except Exception as e:
+        logger.error(f"本地渲染同样失败: {e}")
+        return None
+
 
 async def render_price_res_pic(item_data: dict, history_data: list, order_data: dict):
     # 价格数据均来自 API
@@ -52,7 +75,7 @@ async def render_price_res_pic(item_data: dict, history_data: list, order_data: 
         autoescape=jinja2.select_autoescape(['html', 'xml'])
     )
 
-    # 鏍规嵁鏄惁鏈夋ā绯婂尮閰嶇粨鏋滈€夋嫨妯℃澘
+    # 根据是否存在模糊匹配结果选择模板
     try:
         # API 应返回 type_id；若缺失则无法下载图标
         item_id = item_data.get("type_id")
@@ -85,11 +108,11 @@ async def render_price_res_pic(item_data: dict, history_data: list, order_data: 
         logger.error(f"请确保模板文件已放置在 {template_path} 目录下")
         return None
 
-    # 鐢熸垚杈撳嚭璺緞
+    # 生成输出路径
     output_path = os.path.abspath(os.path.join((TMP_PATH), "price_res.jpg"))
 
-    # 澧炲姞绛夊緟鏃堕棿鍒?绉掞紝纭繚鍥捐〃鏈夎冻澶熸椂闂存覆鏌?
-    pic_path = await PictureRender.render_pic(output_path, html_content, width=550, height=720, wait_time=120)
+    # 适当增加等待时间，确保图表有足够时间渲染
+    pic_path = await render_html_to_image(html_content, output_path, width=550, height=720, wait_time=120)
 
     if not pic_path:
         raise Exception("pic_path not exist.")
@@ -168,7 +191,8 @@ async def render_single_cost_pic(single_cost_data: dict):
         return None
 
     output_path = os.path.abspath(os.path.join((TMP_PATH), "single_cost_res.jpg"))
-    pic_path = await PictureRender.render_pic(output_path, html_content, width=550, height=720, wait_time=120)
+    # 成本模板内容靠左（body min-width: 526px），裁剪时保留左侧
+    pic_path = await render_html_to_image(html_content, output_path, width=550, height=720, wait_time=120, crop_align="left")
     if not pic_path:
         raise Exception("pic_path not exist.")
     return pic_path

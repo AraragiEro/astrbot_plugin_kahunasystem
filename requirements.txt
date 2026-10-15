@@ -1,25 +1,20 @@
-cachetools==5.5.1
-imgkit==1.2.3
-networkx==3.4.2
-oauthlib==3.2.2
-openai==1.66.3
-peewee==3.17.9
-pydantic==2.10.6
-Requests==2.32.3
-requests_oauthlib==2.0.0
-thefuzz==0.22.1
-tqdm==4.67.1
-pyppeteer==2.0.0
-websockets<11
-pulp==3.1.1
-pandas==2.2.3
-aiohttp==3.9.5
-google-api-python-client==2.167.0
-google_auth_httplib2==0.2.0
-httplib2==0.22.0
-sqlalchemy==2.0.40
-aiosqlite==0.21.0
-aiocache==0.12.3
-quart==0.20.0
-quart-auth==0.11.0
-quart-schema==0.22.0
+# 本插件真正用到的第三方依赖
+# AstrBot v4.29+ 启用「核心依赖版本保护」：安装插件依赖时会把 AstrBot 核心已安装的依赖
+# 版本写成 pip 约束（-c constraints.txt），任何与核心版本冲突的固定版本都会让整份
+# requirements 安装被拦截并判定为 DependencyConflictError，插件随之加载失败。
+#
+# 因此这里只保留不与核心重叠的最小依赖：
+#   - aiohttp / jinja2 / requests 已随 AstrBot 核心环境提供，无需固定版本
+#   - 不要再加入 pyppeteer / imgkit 等渲染依赖（见下方说明）
+#
+# 历史问题（2026-10-15 加载失败）：旧列表里带有 openai==1.66.3、pydantic==2.10.6、
+# websockets<11、sqlalchemy==2.0.40、quart==0.20.0 等固定版本，与核心已安装版本冲突，
+# 导致整份依赖安装被阻断，连 imgkit 都装不上（ModuleNotFoundError: imgkit）。
+#
+# 图片渲染说明：pyppeteer 2.0.0 依赖 websockets<11，而 AstrBot 核心要求 websockets>=15，
+# 两者无法共存在同一 Python 环境。因此出图改为优先调用 AstrBot 内置的文转图服务
+# （context.html_renderer，走 t2i_endpoint / 官方端点池），本地不再需要浏览器依赖；
+# 远程渲染不可用时依次回退「本地 pyppeteer（若环境里恰好可用）」→「纯文本结果」。
+# 相关实现见 src/picture_render_server/picture_render.py 与 src/event.py。
+jinja2
+requests
