@@ -18,6 +18,7 @@
 ├── src/
 │   ├── event.py       # 指令处理逻辑 (.ojita/.frt/.成本/.绑定)
 │   ├── api_client.py  # HTTP 客户端，封装对 kahunabot 的 API 调用
+│   ├── identity.py    # 平台身份(openid) ↔ 真实 QQ 号 映射层
 │   ├── resource/      # 静态资源 (图片素材)
 │   └── picture_render_server/  # 价格/成本图片渲染
 ├── data/              # 数据文件
@@ -34,6 +35,13 @@
 | `.成本 <物品名>` | 查询制造成本明细 (图片渲染) | 公开 (全局锁防并发) |
 | `cost <物品名>` | `.成本` 的英文别名 | 公开 |
 | `.绑定kahunasystem <uuid>` | QQ 绑定 kahunasystem 账号 | 公开 |
+| `/绑定QQ <QQ号>` | 把当前平台身份绑定到你的 QQ 号（QQ 官方机器人必做一次） | 公开 |
+| `/解绑QQ` | 解除当前身份的 QQ 号绑定 | 公开 |
+| `/我的绑定` | 查看当前身份的绑定情况 | 公开 |
+| `/绑定审计 <QQ号>` | 查看某 QQ 号的绑定/解绑审计 | 管理员 |
+
+> 指令前缀由 AstrBot 的 `wake_prefix` 决定（默认 `/`，插件会把正确前缀拼进提示语）；
+> 表中 `.绑定kahunasystem` 沿用历史写法，实际前缀以主人配置为准。
 
 ## 关键开发模式
 
@@ -85,6 +93,26 @@ async def cost(self, event: AstrMessageEvent, require_str: str):
   （正是上面那个原因），插件已在加载时就此打一条 INFO 日志提示
 - 私聊（C2C）与 aiocqhttp 等平台不做此处理，@ 仍交给 AstrBot 的
   「回复时 @ 用户」设置
+
+### 平台身份与 QQ 号映射（重要）
+- 背景：QQ 官方机器人**只提供 openid**（群 `member_openid` / 单聊 `user_openid`，
+  两者是不同值），平台不提供 QQ 号也没有反查接口；而 kahunabot 后端与既有数据
+  （`user_qq_binding`、资产归属、权限、缓存 key）全部以整数 QQ 号为业务身份
+- 中间层 `src/identity.py`：业务需要 QQ 号时统一走 `resolve_qq(event)` ——
+  纯数字身份（OneBot/aiocqhttp 等）直接返回，openid 查映射表；查不到时调用方用
+  `qq_required_hint(event)` 提示用户绑定，**不要因此阻断不依赖 QQ 号的功能**（查价/出图）
+- 存储：AstrBot 插件 KV（`Star.get_kv_data/put_kv_data`，底层 `AstrBot/data/data_v4.db`）。
+  **不要**把映射写进插件目录的 `data/`，面板更新插件会把它覆盖掉
+- 键结构：`uid2qq:<platform>:<scene>:<uid>`（记录 dict）、`qq2uid:<qq>`（唯一性校验）、
+  `audit:<qq>`（绑定/解绑审计，最多 20 条）
+- 唯一性规则：一个 QQ 号只能属于一个平台身份；一个身份同时只能绑一个号，换号需先解绑
+- ⚠️ 群聊与单聊的 openid 不同 → 两个场景各自登记（私聊里绑定不影响群聊）；
+  若实测发现同一用户在不同群的 `member_openid` 不一致，需要把群 ID 并入
+  `IdentityStore.identity_key`
+- ⚠️ **@ 提及必须继续用 openid**（`event.get_sender_id()`），只有业务身份才用解析出的
+  QQ 号，两者不要混用
+- 仅覆盖插件指令链路；kahunabot 侧的 MCP 工具（`qq_vip_state(qq)` 等）不经过本层，
+  如后续要支持需另行处理
 
 ### 配置要求
 ```ini
@@ -142,6 +170,7 @@ astrbot_plugin_kahunasystem/
 ├── src/
 │   ├── event.py         # 事件处理器（oprice/frt_price/costdetail/bind）
 │   ├── api_client.py    # kahunabot REST API 封装 (aiohttp)
+│   ├── identity.py      # 平台身份(openid) ↔ 真实 QQ 号 映射层
 │   ├── picture_render_server/  # HTML → 图片渲染服务
 │   └── resource/        # 静态资源
 └── data/                # 数据文件
@@ -155,6 +184,10 @@ astrbot_plugin_kahunasystem/
 | `.frt <物品> [数量]` | 查询 FRT 市场价格 | `.frt Ishtar` |
 | `.成本 <物品>` | 查询物品生产成本 | `.成本 Megathron` |
 | `.绑定kahunasystem <uuid>` | 绑定 QQ 号到 Kahuna 账号 | `.绑定kahunasystem abc123` |
+| `/绑定QQ <QQ号>` | 绑定当前平台身份到你的 QQ 号（QQ 官方机器人必做一次） | `/绑定QQ 123456789` |
+| `/解绑QQ` | 解除当前身份的 QQ 号绑定 | `/解绑QQ` |
+| `/我的绑定` | 查看当前身份的绑定情况 | `/我的绑定` |
+| `/绑定审计 [QQ号]` | 查看绑定/解绑审计（仅管理员） | `/绑定审计 123456789` |
 
 # API 集成模式
 

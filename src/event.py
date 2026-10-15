@@ -10,6 +10,7 @@ from .picture_render_server.render_template import (
     render_single_cost_pic,
 )
 from .api_client import api_price_detail, api_frt_price_detail, api_type_cost, api_qq_bind, api_info
+from .identity import QQ_OFFICIAL_PLATFORMS, get_identity_store, resolve_qq
 
 calculate_lock = asyncio.Lock()
 
@@ -101,8 +102,29 @@ def cost_summary(detail: dict, note: str = "") -> str:
     return "\n".join(lines)
 
 
-# QQ 官方机器人平台标识（websocket / webhook 两种适配器）
-QQ_OFFICIAL_PLATFORMS = ("qq_official", "qq_official_webhook")
+# 指令前缀（取自 AstrBot 的 wake_prefix，默认 "/"），由 main.py 初始化时注入
+COMMAND_PREFIX = "/"
+
+
+def set_command_prefix(prefix: str | None) -> None:
+    global COMMAND_PREFIX
+    COMMAND_PREFIX = (prefix or "").strip() or "/"
+
+
+def qq_required_hint(event: AstrMessageEvent) -> str:
+    """需要 QQ 号但当前身份还没绑定时，给用户的提示。"""
+    if event.get_platform_name() not in QQ_OFFICIAL_PLATFORMS:
+        return "当前平台无法获取你的 QQ 号，这个功能暂时不可用。"
+
+    if event.is_private_chat():
+        scene_hint = f"请在这里直接发送：{COMMAND_PREFIX}绑定QQ <你的QQ号>"
+    else:
+        scene_hint = f"请在本群 @ 我并发送：{COMMAND_PREFIX}绑定QQ <你的QQ号>"
+    return (
+        "这个功能需要用到你的 QQ 号，而 QQ 官方机器人只提供 openid。\n"
+        f"{scene_hint}\n"
+        f"（例如 {COMMAND_PREFIX}绑定QQ 123456789；群聊与私聊的绑定是分开登记的）"
+    )
 
 
 async def send_mention_text(event: AstrMessageEvent, text: str) -> bool:
@@ -413,7 +435,9 @@ class Event:
         # if group_id is not None and str(group_id) not in allow_groups:
         #     return event.plain_result("该指令仅限私聊或指定群使用。")
 
-        qq = event.get_sender_id()
+        qq = await resolve_qq(event)
+        if qq is None:
+            return event.plain_result(qq_required_hint(event))
         try:
             res_json = await api_qq_bind(
                 Event.config["kahunasystem_host"],
@@ -433,3 +457,79 @@ class Event:
             return event.plain_result(res_json.get("message") or "绑定失败。")
 
         return event.plain_result("绑定成功")
+
+    @staticmethod
+    async def bind_qq(event: AstrMessageEvent, qq_str: str = ""):
+        """把当前平台身份绑定到自报的 QQ 号（QQ 官方机器人拿不到 QQ 号，只能自报）。"""
+        text = (qq_str or "").strip()
+        if not text:
+            return event.plain_result(
+                f"用法：{COMMAND_PREFIX}绑定QQ <你的QQ号>，"
+                f"例如 {COMMAND_PREFIX}绑定QQ 123456789"
+            )
+        if not text.isdigit() or not (5 <= len(text) <= 11):
+            return event.plain_result("QQ 号看起来不对，请输入 5~11 位数字。")
+
+        if event.get_platform_name() not in QQ_OFFICIAL_PLATFORMS:
+            return event.plain_result("当前平台可以直接获取 QQ 号，无需绑定。")
+
+        store = get_identity_store()
+        if store is None:
+            return event.plain_result("身份映射层未初始化，请稍后再试。")
+
+        ok, message = await store.bind(event, int(text))
+        if not ok:
+            return event.plain_result(message)
+        return event.plain_result(f"{message}\n现在可以重新发送刚才的指令了。")
+
+    @staticmethod
+    async def unbind_qq(event: AstrMessageEvent):
+        """解除当前平台身份与 QQ 号的绑定。"""
+        store = get_identity_store()
+        if store is None:
+            return event.plain_result("身份映射层未初始化，请稍后再试。")
+
+        _, message = await store.unbind(event)
+        return event.plain_result(message)
+
+    @staticmethod
+    async def my_binding(event: AstrMessageEvent):
+        """查看当前平台身份的绑定情况（也用于核对不同群的 openid 是否一致）。"""
+        store = get_identity_store()
+        if store is None:
+            return event.plain_result("身份映射层未初始化，请稍后再试。")
+
+        return event.plain_result(await store.describe(event))
+
+    @staticmethod
+    async def binding_audit(event: AstrMessageEvent, qq_str: str = ""):
+        """查看某个 QQ 号的绑定/解绑审计记录（仅管理员）。"""
+        store = get_identity_store()
+        if store is None:
+            return event.plain_result("身份映射层未初始化，请稍后再试。")
+        if not event.is_admin():
+            return event.plain_result("只有管理员可以查看绑定审计。")
+
+        text = (qq_str or "").strip()
+        if text:
+            if not text.isdigit():
+                return event.plain_result("QQ 号必须是数字。")
+            qq = int(text)
+        else:
+            qq = await resolve_qq(event)
+            if qq is None:
+                return event.plain_result(f"用法：{COMMAND_PREFIX}绑定审计 <QQ号>")
+
+        records = await store.get_audit(qq)
+        if not records:
+            return event.plain_result(f"QQ {qq} 没有绑定记录。")
+
+        lines = [f"QQ {qq} 的绑定审计（最近 {len(records)} 条）："]
+        for record in reversed(records):
+            lines.append(
+                f"- {record.get('bound_at', '-')} {record.get('action', '?')} "
+                f"{record.get('platform', '-')}/{record.get('scene', '-')} "
+                f"群 {record.get('group_id') or '-'} "
+                f"昵称 {record.get('sender_name') or '-'}"
+            )
+        return event.plain_result("\n".join(lines))

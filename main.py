@@ -3,8 +3,9 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 from astrbot.api import AstrBotConfig
 
-from .src.event import Event
+from .src.event import Event, set_command_prefix
 from .src.api_client import set_service_api_key
+from .src.identity import IdentityStore, set_identity_store
 from .src.picture_render_server.picture_render import set_t2i_renderer
 
 
@@ -40,6 +41,19 @@ class MyPlugin(Star):
                 "出图指令会单独发送 @ 摘要消息（图片消息已跳过该装饰）。"
             )
 
+        # 平台身份 → 真实 QQ 号 的映射层。
+        # QQ 官方机器人只给 openid，而 kahunabot 后端与既有数据都以 QQ 号为业务身份，
+        # 这里用插件自带的 KV 存储（落在 AstrBot/data/data_v4.db，插件更新不会丢）维护映射。
+        set_identity_store(IdentityStore(self))
+
+        # 提示语里要显示正确的指令前缀（AstrBot 的 wake_prefix，默认 "/"）
+        wake_prefix = global_config.get("wake_prefix") or ["/"]
+        if isinstance(wake_prefix, (list, tuple)):
+            command_prefix = wake_prefix[0] if wake_prefix else "/"
+        else:
+            command_prefix = str(wake_prefix)
+        set_command_prefix(command_prefix)
+
     async def initialize(self):
         """可选的异步初始化方法。"""
 
@@ -72,6 +86,28 @@ class MyPlugin(Star):
         parts = message_str.split()
         uuid = parts[1] if len(parts) >= 2 else None
         yield await Event.bind_kahunasystem(event, uuid)
+
+    # ---- 平台身份 ↔ QQ 号 映射（QQ 官方机器人只给 openid，业务仍需要 QQ 号）----
+
+    @filter.command("绑定QQ", alias={"绑定qq", "bindqq"})
+    async def bind_qq(self, event: AstrMessageEvent, qq_str: str = ""):
+        """绑定你的 QQ 号（QQ 官方机器人拿不到 QQ 号，需要自报一次）。"""
+        yield await Event.bind_qq(event, qq_str)
+
+    @filter.command("解绑QQ", alias={"解绑qq", "unbindqq"})
+    async def unbind_qq(self, event: AstrMessageEvent):
+        """解除当前身份的 QQ 号绑定。"""
+        yield await Event.unbind_qq(event)
+
+    @filter.command("我的绑定", alias={"mybind"})
+    async def my_binding(self, event: AstrMessageEvent):
+        """查看当前身份的绑定情况。"""
+        yield await Event.my_binding(event)
+
+    @filter.command("绑定审计", alias={"bindaudit"})
+    async def binding_audit(self, event: AstrMessageEvent, qq_str: str = ""):
+        """查看某个 QQ 号的绑定审计（仅管理员）。"""
+        yield await Event.binding_audit(event, qq_str)
 
     @filter.command("ssid")
     async def ssid(self, event: AstrMessageEvent):
