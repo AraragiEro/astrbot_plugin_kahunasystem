@@ -67,10 +67,24 @@ async def cost(self, event: AstrMessageEvent, require_str: str):
   `websockets<11`，与 AstrBot 核心的 `websockets>=15` 冲突，会被「核心依赖版本保护」
   拦截并导致整份依赖安装失败、插件加载失败（v4.29.0 踩过）
 - 降级顺序：远程文转图 → 本地 pyppeteer（仅在环境里恰好可用时）→ 纯文本结果
-  （`src/event.py` 的 `price_text_fallback` / `cost_text_fallback`）
+  （`src/event.py` 的 `price_summary` / `cost_summary`）
 - 远程渲染固定 800px 视口宽（`viewport` 选项会被忽略），`full_page=True` 时高度自适应；
   出图后用 `PictureRender.crop_to_width()` 本地裁回目标宽度，注意按模板内容对齐方式传
   `crop_align`：价格模板内容是居中卡片（`center`），成本模板内容靠左（`left`）
+
+### QQ 官方机器人的 @（重要）
+- QQ 官方机器人只解析**文本 / markdown** 消息里的 @ 标签（适配器把 `At` 组件序列化成
+  `<qqbot-at-user id="..." />`）；**带图的消息走富媒体消息（msg_type=7），其中的 @ 标签
+  不会被解析，会原样显示**成那串标签文本
+- 因此出图指令（`.ojita`/`.frt`/`.成本`）统一先单独发一条「@ 发送者 + 文本摘要」
+  （见 `src/event.py` 的 `send_mention_text()` / `prepare_image_reply()`），再发图片
+- 图片链会插入一个空 `Reply` 占位，用于跳过 AstrBot 发送前装饰阶段对
+  「全是 Plain/Image」消息链的 At 注入（`result_decorate/stage.py` 的 `can_decorate`）；
+  qq_official 适配器会忽略空 `Reply`，所以图片消息不会再冒出标签
+- AstrBot 的「回复时 @ 用户」(`platform_settings.reply_with_mention`) 对图片回复无效
+  （正是上面那个原因），插件已在加载时就此打一条 INFO 日志提示
+- 私聊（C2C）与 aiocqhttp 等平台不做此处理，@ 仍交给 AstrBot 的
+  「回复时 @ 用户」设置
 
 ### 配置要求
 ```ini

@@ -1,6 +1,6 @@
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
+from astrbot.api.event import filter, AstrMessageEvent, MessageChain, MessageEventResult
 from astrbot.api.star import Context, Star, register
-from astrbot.api.message_components import Image
+from astrbot.api.message_components import At, Image, Reply
 from astrbot.core.message.components import Plain
 from astrbot.core import logger
 import asyncio
@@ -45,8 +45,11 @@ def _to_float(value, default: float = 0.0) -> float:
         return default
 
 
-def price_text_fallback(data: dict, quantity: int, source: str) -> str:
-    """图片渲染不可用时的纯文本价格摘要。"""
+def price_summary(data: dict, quantity: int, source: str, note: str = "") -> str:
+    """价格文本摘要。
+
+    两处用途：出图前单独发的 @ 摘要消息；图片渲染不可用时的降级文本（此时传 note 说明）。
+    """
     item_name = (
         data.get("name_zh")
         or data.get("matched_name")
@@ -58,7 +61,7 @@ def price_text_fallback(data: dict, quantity: int, source: str) -> str:
     sell = _to_float(data.get("sell"))
 
     lines = [
-        f"【{source} 价格】{item_name}（图片渲染不可用，以下为文本结果）",
+        f"【{source} 价格】{item_name}{note}",
         f"buy: {buy:,.2f}",
         f"mid: {mid:,.2f}",
         f"sell: {sell:,.2f}",
@@ -71,8 +74,8 @@ def price_text_fallback(data: dict, quantity: int, source: str) -> str:
     return "\n".join(lines)
 
 
-def cost_text_fallback(detail: dict) -> str:
-    """图片渲染不可用时的纯文本成本摘要。"""
+def cost_summary(detail: dict, note: str = "") -> str:
+    """成本文本摘要（用途同 price_summary）。"""
     item_name = detail.get("item_name") or str(detail.get("type_id", ""))
     item_name_cn = detail.get("item_name_cn") or item_name
     total_cost = _to_float(detail.get("total_cost"))
@@ -84,7 +87,7 @@ def cost_text_fallback(detail: dict) -> str:
     profit_rate = (profit / total_cost * 100) if total_cost else 0.0
 
     lines = [
-        f"【成本】{item_name_cn}（图片渲染不可用，以下为文本结果）",
+        f"【成本】{item_name_cn}{note}",
         f"总成本: {total_cost:,.2f}",
         f"Jita buy: {jita_buy:,.2f}",
         f"Jita mid: {jita_mid:,.2f}",
@@ -96,6 +99,59 @@ def cost_text_fallback(detail: dict) -> str:
     if user_name or plan_name:
         lines.append(f"方案: {user_name or '-'} / {plan_name or '-'}")
     return "\n".join(lines)
+
+
+# QQ 官方机器人平台标识（websocket / webhook 两种适配器）
+QQ_OFFICIAL_PLATFORMS = ("qq_official", "qq_official_webhook")
+
+
+async def send_mention_text(event: AstrMessageEvent, text: str) -> bool:
+    """单独发送一条「@ 发送者 + 文本」的消息，返回是否发送成功。
+
+    QQ 官方机器人只解析文本 / markdown 消息里的 @ 标签
+    （适配器会把 At 组件序列化成 ``<qqbot-at-user id="..." />``），
+    而带图的消息会走富媒体消息（msg_type=7），其中的 @ 标签不会被解析、
+    会原样显示在群聊里。所以出图前先单独发一条文本消息承担 @。
+    """
+    sender_id = event.get_sender_id()
+    if not sender_id:
+        return False
+
+    try:
+        await event.send(
+            MessageChain(
+                [
+                    At(qq=sender_id, name=event.get_sender_name()),
+                    Plain("\n" + text),
+                ]
+            )
+        )
+        return True
+    except Exception as e:
+        logger.warning(f"发送 @ 摘要消息失败（不影响后续出图）: {e}")
+        return False
+
+
+async def prepare_image_reply(
+    event: AstrMessageEvent, chain: list, summary: str
+) -> list:
+    """QQ 官方机器人出图前的处理：先 @ 发送者，并保证图片消息里不再出现 @ 标签。
+
+    非 QQ 官方平台、以及私聊（C2C）原样返回：@ 仍交给 AstrBot 的
+    「回复时 @ 用户」设置处理。
+    """
+    if event.get_platform_name() not in QQ_OFFICIAL_PLATFORMS:
+        return chain
+    if event.is_private_chat():
+        return chain
+
+    await send_mention_text(event, summary)
+
+    # AstrBot 发送前的装饰阶段只给「全是 Plain/Image」的消息链补 At/Reply
+    # （见 astrbot/core/pipeline/result_decorate/stage.py 的 can_decorate），
+    # 这里插入一个空 Reply 占位即可跳过该装饰；QQ 官方适配器会忽略空 Reply，
+    # 于是图片消息里不会再冒出原样显示的 @ 标签。
+    return [Reply(id=""), *chain]
 
 
 class Event:
@@ -167,7 +223,11 @@ class Event:
             )
         except Exception as e:
             logger.error(f"渲染价格图片失败: {e}")
-            return event.plain_result(price_text_fallback(data, quantity, "Jita"))
+            return event.plain_result(
+                price_summary(
+                    data, quantity, "Jita", note="（图片渲染不可用，以下为文本结果）"
+                )
+            )
 
         chain = [Image.fromFileSystem(res_path)]
         if quantity > 1:
@@ -179,6 +239,10 @@ class Event:
             quantity_str += f"buy: {max_buy * quantity:,}\n"
             quantity_str += f"mid: {mid_price * quantity:,}\n"
             chain += [Plain(quantity_str)]
+        # QQ 官方机器人：图片消息承载不了 @，先单独发一条带 @ 的摘要
+        chain = await prepare_image_reply(
+            event, chain, price_summary(data, quantity, "Jita")
+        )
         return event.chain_result(chain)
 
     @staticmethod
@@ -245,7 +309,11 @@ class Event:
             )
         except Exception as e:
             logger.error(f"渲染价格图片失败: {e}")
-            return event.plain_result(price_text_fallback(data, quantity, "FRT"))
+            return event.plain_result(
+                price_summary(
+                    data, quantity, "FRT", note="（图片渲染不可用，以下为文本结果）"
+                )
+            )
 
         chain = [Image.fromFileSystem(res_path)]
         if quantity > 1:
@@ -257,6 +325,10 @@ class Event:
             quantity_str += f"buy: {max_buy * quantity:,}\n"
             quantity_str += f"mid: {mid_price * quantity:,}\n"
             chain += [Plain(quantity_str)]
+        # QQ 官方机器人：图片消息承载不了 @，先单独发一条带 @ 的摘要
+        chain = await prepare_image_reply(
+            event, chain, price_summary(data, quantity, "FRT")
+        )
         return event.chain_result(chain)
 
     @staticmethod
@@ -314,9 +386,17 @@ class Event:
                     pic_path = await render_single_cost_pic(detail_dict)
                 except Exception as e:
                     logger.error(f"渲染成本图片失败: {e}")
-                    return event.plain_result(cost_text_fallback(detail_dict))
+                    return event.plain_result(
+                        cost_summary(
+                            detail_dict, note="（图片渲染不可用，以下为文本结果）"
+                        )
+                    )
 
                 chain = [Image.fromFileSystem(pic_path)]
+                # QQ 官方机器人：图片消息承载不了 @，先单独发一条带 @ 的摘要
+                chain = await prepare_image_reply(
+                    event, chain, cost_summary(detail_dict)
+                )
                 return event.chain_result(chain)
             finally:
                 calculate_lock.release()

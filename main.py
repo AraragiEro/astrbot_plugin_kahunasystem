@@ -31,6 +31,15 @@ class MyPlugin(Star):
             global_config.get("t2i_endpoint"),
         )
 
+        # QQ 官方机器人的图片消息（富媒体）承载不了 @，会原样显示 <qqbot-at-user id="..." />。
+        # 插件已对出图指令改为「先单发一条 @ 摘要、再发图」，这里只做提示。
+        platform_settings = global_config.get("platform_settings") or {}
+        if platform_settings.get("reply_with_mention"):
+            logger.info(
+                "检测到「回复时 @ 用户」已开启：QQ 官方机器人的图片消息无法承载 @，"
+                "出图指令会单独发送 @ 摘要消息（图片消息已跳过该装饰）。"
+            )
+
     async def initialize(self):
         """可选的异步初始化方法。"""
 
