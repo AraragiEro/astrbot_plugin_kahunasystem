@@ -109,6 +109,19 @@ class MyPlugin(Star):
         """查看某个 QQ 号的绑定审计（仅管理员）。"""
         yield await Event.binding_audit(event, qq_str)
 
+    # ---- 给 LLM 的映射查询工具（供调用 kahunabot 的 MCP 工具前取真实 QQ 号）----
+
+    @filter.llm_tool(name="kahunasystem_get_my_qq")
+    async def get_my_qq(self, event: AstrMessageEvent) -> str:
+        """查询当前对话用户的真实 QQ 号（kahunasystem 身份）。
+
+        只要需要调用带 qq 参数的 kahunasystem 工具（市场查价、制造成本、VIP 状态、
+        关注列表、资产等），都必须先调用本工具拿到当前用户的真实 QQ 号，
+        再把返回值中的号码作为 qq 参数传入；不要自行猜测 QQ 号，也不要使用其他用户的 QQ 号。
+        返回内容若提示无法获取，请按其中的指引转告用户，不要继续调用需要 qq 参数的工具。
+        """
+        return await Event.get_my_qq_for_llm(event)
+
     @filter.command("ssid")
     async def ssid(self, event: AstrMessageEvent):
         yield event.plain_result(f"你的 session id 是: {event.get_session_id()}")

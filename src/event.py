@@ -502,6 +502,33 @@ class Event:
         return event.plain_result(await store.describe(event))
 
     @staticmethod
+    async def get_my_qq_for_llm(event: AstrMessageEvent) -> str:
+        """给 LLM 工具用：返回当前用户真实 QQ 号，或如何绑定的指引。
+
+        永不返回 None：AstrBot 中 LLM 工具返回 None 表示「结果不进下一轮 prompt」，
+        那样模型就看不到 QQ 号了。
+        """
+        qq = await resolve_qq(event)
+        if qq is not None:
+            return (
+                f"当前用户的真实 QQ 号是 {qq}。"
+                "调用需要 qq 参数的 kahunasystem 工具时，请直接使用该值。"
+            )
+
+        if event.get_platform_name() in QQ_OFFICIAL_PLATFORMS:
+            scene = "这里" if event.is_private_chat() else "本群"
+            action = (
+                f"请提示用户在{scene}发送「{COMMAND_PREFIX}绑定QQ <其QQ号>」完成绑定后再重试。"
+            )
+        else:
+            action = "当前平台无法解析 QQ 号，请提示用户稍后重试。"
+
+        return (
+            f"无法获取当前用户的真实 QQ 号。{action}"
+            "在拿到 QQ 号之前，不要调用任何需要 qq 参数的 kahunasystem 工具，也不要猜测 QQ 号。"
+        )
+
+    @staticmethod
     async def binding_audit(event: AstrMessageEvent, qq_str: str = ""):
         """查看某个 QQ 号的绑定/解绑审计记录（仅管理员）。"""
         store = get_identity_store()

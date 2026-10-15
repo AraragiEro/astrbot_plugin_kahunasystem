@@ -113,6 +113,16 @@ async def cost(self, event: AstrMessageEvent, require_str: str):
   QQ 号，两者不要混用
 - 仅覆盖插件指令链路；kahunabot 侧的 MCP 工具（`qq_vip_state(qq)` 等）不经过本层，
   如后续要支持需另行处理
+- **给 LLM 的取号入口**：`@filter.llm_tool(name="kahunasystem_get_my_qq")`（`main.py`，
+  逻辑在 `Event.get_my_qq_for_llm()`）。模型在调用带 `qq` 参数的 kahunabot MCP 工具**之前**
+  应先调用它拿到当前用户的真实 QQ 号。写工具时注意：
+  - **必须 return str**：AstrBot 中 LLM 工具返回 `None` 表示「结果不进下一轮 prompt」，
+    返回 str 才会给模型看到；返回的内容不会发到群里
+  - **不要 yield**：工具里 yield 的内容会被当成要给用户发的消息
+  - 工具函数第一个参数是 `self`（AstrBot 用 `functools.partial(handler, 插件实例)` 绑定），
+    第二个是 `event`；参数 schema 由**函数注释**解析，有参数时必须写规范 `Args:` 段
+  - 群聊/私聊 openid 不同，因此本工具只能解析「当前会话的发送者」，
+    无法解析其他人（如把别人的 QQ 号传给它核对）
 
 ### 配置要求
 ```ini
