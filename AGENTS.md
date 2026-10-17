@@ -5,7 +5,8 @@
 - **插件名称**: kahunasystem_api (v0.0.5)
 - **类型**: AstrBot 插件
 - **用途**: QQ 机器人市场查价、成本计算、用户绑定、抽奖系统
-- **后端依赖**: 通过 REST API 调用 kahunabot Web 服务获取数据
+- **后端依赖**: 通过 REST API 调用 **EveKahunaSystem**（Quart Web 应用，源码仓库 `../EveKahunaSystem-Dev`；
+  旧目录名 `astrbot_plugin_kahunabot`、旧称 `kahunabot`，均指同一后端）获取数据
 - **技术栈**: AstrBot API, aiohttp, Pillow (图片渲染), ESI API, zKillboard API
 
 ## 项目结构
@@ -168,7 +169,8 @@ cost_plan = "default_plan"                   # 成本计算默认方案
 - **插件名**: kahunasystem_api v0.0.5
 - **类型**: AstrBot 插件（QQ 机器人）
 - **功能**: 市场查价（.ojita/.frt/.成本）、QQ 绑定、抽奖系统
-- **依赖后端**: kahunabot (Quart Web 应用) 提供 REST API
+- **依赖后端**: **EveKahunaSystem**（Quart Web 应用，源码仓库 `../EveKahunaSystem-Dev`；
+  旧目录名 `astrbot_plugin_kahunabot`、旧称 `kahunabot`）提供 REST API
 
 # 目录结构
 ```
