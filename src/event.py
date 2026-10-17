@@ -9,7 +9,14 @@ from .picture_render_server.render_template import (
     render_price_res_pic,
     render_single_cost_pic,
 )
-from .api_client import api_price_detail, api_frt_price_detail, api_type_cost, api_qq_bind, api_info
+from .api_client import (
+    api_frt_price_detail,
+    api_info,
+    api_price_detail,
+    api_qq_bind,
+    api_type_cost,
+    clip_text,
+)
 from .identity import QQ_OFFICIAL_PLATFORMS, get_identity_store, resolve_qq
 
 calculate_lock = asyncio.Lock()
@@ -44,6 +51,19 @@ def _to_float(value, default: float = 0.0) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def api_error_for_user(scene: str) -> str:
+    """接口异常时回给 QQ 群的固定文案。
+
+    ⚠️ 群里**不放任何错误细节**：状态码、后端 message、响应体一律不外发。
+    后端/网关（nginx、Cloudflare）出错时返回的是 HTML 页面，动辄几十 KB，
+    一旦拼进 plain_result 就会把整页 HTML/JS 灌进群（2026-10-17 线上踩过：
+    `成本接口请求失败: HTTP 405, message: <!doctype html>…`）。
+    排查信息只写日志：src/api_client.py 的 _log_failure() 会记录 URL、状态码
+    与截断后的响应体，需要定位问题时看 AstrBot 日志。
+    """
+    return f"{scene}暂时不可用，请稍后再试。"
 
 
 def price_summary(data: dict, quantity: int, source: str, note: str = "") -> str:
@@ -200,7 +220,7 @@ class Event:
             return event.plain_result("获取访问令牌失败，请稍后再试。")
 
         if info_res.get("status") != 200:
-            message = info_res.get("message", "获取访问令牌失败")
+            message = clip_text(info_res.get("message") or "获取访问令牌失败", 120)
             return event.plain_result(f"获取访问令牌失败: {message}")
 
         access_token = info_res.get("data", {}).get("access_token")
@@ -216,9 +236,7 @@ class Event:
             )
         except Exception as e:
             logger.error(f"价格接口请求异常: {e}")
-            if isinstance(e, ValueError):
-                return event.plain_result(f"价格接口请求失败: {e}")
-            return event.plain_result("价格接口请求异常，请稍后再试。")
+            return event.plain_result(api_error_for_user("价格接口"))
 
         is_price = res_json.get("is_price", False)
         if not is_price:
@@ -288,7 +306,7 @@ class Event:
             return event.plain_result("获取访问令牌失败，请稍后再试。")
 
         if info_res.get("status") != 200:
-            message = info_res.get("message", "获取访问令牌失败")
+            message = clip_text(info_res.get("message") or "获取访问令牌失败", 120)
             return event.plain_result(f"获取访问令牌失败: {message}")
 
         access_token = info_res.get("data", {}).get("access_token")
@@ -303,9 +321,7 @@ class Event:
             )
         except Exception as e:
             logger.error(f"FRT价格接口请求异常: {e}")
-            if isinstance(e, ValueError):
-                return event.plain_result(f"FRT价格接口请求失败: {e}")
-            return event.plain_result("FRT价格接口请求异常，请稍后再试。")
+            return event.plain_result(api_error_for_user("FRT 价格接口"))
 
         is_price = res_json.get("is_price", False)
         if not is_price:
@@ -377,7 +393,7 @@ class Event:
                     return event.plain_result("获取访问令牌失败，请稍后再试。")
 
                 if info_res.get("status") != 200:
-                    message = info_res.get("message", "获取访问令牌失败")
+                    message = clip_text(info_res.get("message") or "获取访问令牌失败", 120)
                     return event.plain_result(f"获取访问令牌失败: {message}")
 
                 access_token = info_res.get("data", {}).get("access_token")
@@ -396,9 +412,7 @@ class Event:
                     )
                 except Exception as e:
                     logger.error(f"成本接口请求异常: {e}")
-                    if isinstance(e, ValueError):
-                        return event.plain_result(f"成本接口请求失败: {e}")
-                    return event.plain_result("成本接口请求异常，请稍后再试。")
+                    return event.plain_result(api_error_for_user("成本接口"))
 
                 if not res_json.get("is_cost", False):
                     return event.plain_result(f"物品 {type_name} 未找到成本数据。")
@@ -454,7 +468,9 @@ class Event:
         except Exception:
             status = None
         if status and status >= 400:
-            return event.plain_result(res_json.get("message") or "绑定失败。")
+            return event.plain_result(
+                clip_text(res_json.get("message") or "绑定失败。", 120)
+            )
 
         return event.plain_result("绑定成功")
 

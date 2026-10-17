@@ -62,6 +62,15 @@ async def cost(self, event: AstrMessageEvent, require_str: str):
 - `post_json()` / `get_json()` 为基础封装
 - `api_run()` 为通用 kahunabot 后端调用入口
 - 需先调用 `api_info()` 获取 access_token
+- 🔴 **接口失败不要在群里回细节**：用户可见文案统一走 `src/event.py` 的
+  `api_error_for_user()`，只回固定文案「XX 暂时不可用，请稍后再试。」——
+  状态码、后端 message、响应体一律不外发。
+  `src/api_client.py` 的 `ApiError`（`ValueError` 子类）负责把异常文本收口：
+  `str(e)` 只含「状态码 + 极短摘要」，原始响应体只进日志且截断 500 字
+  （`_log_failure`），HTML 响应直接打码、JSON 只取 `message` 字段。
+  原因：后端/网关（nginx、Cloudflare）出错时返回的是整页 HTML，几十 KB 拼进
+  `plain_result` 会把整页 HTML/JS 灌进 QQ 群（2026-10-17 线上事故：
+  `成本接口请求失败: HTTP 405, message: <!doctype html>…`）。排查看 AstrBot 日志。
 
 ### 图片渲染
 - 使用 `picture_render_server/render_template.py` 生成价格/成本图表
@@ -220,10 +229,11 @@ QQ 指令 → Event.xxx() → api_info() 获取 access_token → api_xxx() HTTP 
 try:
     res_json = await api_xxx(...)
 except Exception as e:
-    if isinstance(e, ValueError):
-        return event.plain_result(f"请求失败: {e}")
-    return event.plain_result("请求异常，请稍后再试。")
+    logger.error(f"xxx接口请求异常: {e}")          # 完整信息只进日志
+    return event.plain_result(api_error_for_user("xxx接口"))  # 群里只回固定文案
 ```
+- **禁止**把异常原文（`f"...{e}"`）拼进 `plain_result`，也不要回状态码、后端 message：
+  后端/网关的 HTML 错误页会把整页 HTML/JS 发到群里。
 
 ## 图片渲染
 - `picture_render_server/render_template.py` 提供 `render_price_res_pic()` / `render_single_cost_pic()`
