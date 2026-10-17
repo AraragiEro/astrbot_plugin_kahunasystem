@@ -210,3 +210,21 @@ __marimo__/
 config.ini
 resource/**/*.html
 tmp/*
+
+# ---- 插件项目相关 ----
+# 插件市场要求插件目录下提供 logo.png（1:1，推荐 256x256），
+# 上面的 *.png 规则会把它一起忽略，这里显式放行。
+!logo.png
+
+# 运行时缓存与临时产物（resource/img 是 EVE 图床图标下载缓存）
+resource/img/
+tmp/
+
+# 技能分发包（skills/ 下的目录才是源，zip 不进仓库）
+*.zip
+
+# 本地开发工具目录
+.playwright-mcp/
+
+# 插件目录不放持久数据，应使用 AstrBot 的 data 目录或插件 KV 存储
+data/

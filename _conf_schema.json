@@ -1,26 +1,40 @@
 {
-    "kahunasystem_host": {
-      "description": "kahunasystem host",
-      "type": "string"
-    },
-    "cost_username": {
-      "description": "cost username",
-      "type": "string"
-    },
-    "cost_plan": {
-      "description": "cost plan",
-      "type": "string"
-    },
-    "bind_allow_group_ids": {
-      "description": "comma-separated group ids that allow .绑定kahunasystem",
-      "type": "string"
-    },
-    "vip_white_session_ids": {
-      "description": "跳过vip判断的session id列表",
-      "type": "list"
-    },
-    "service_api_key": {
-      "description": "服务间认证密钥（需与 kahunabot config.toml 的 [SERVICE] API_KEY 一致）",
-      "type": "string"
-    }
+  "kahunasystem_host": {
+    "description": "后端地址",
+    "type": "string",
+    "default": "http://127.0.0.1:9527",
+    "hint": "EveKahunaSystem 后端根地址，需包含协议与端口，例如 http://127.0.0.1:9527"
+  },
+  "service_api_key": {
+    "description": "服务间认证密钥",
+    "type": "string",
+    "default": "",
+    "secret": true,
+    "obvious_hint": true,
+    "hint": "需与后端 config.toml 中 [SERVICE] API_KEY 完全一致，否则所有指令都会返回「暂时不可用」"
+  },
+  "cost_username": {
+    "description": "成本计算默认用户",
+    "type": "string",
+    "default": "default_user",
+    "hint": "执行 .成本 时未指定用户时使用的后端用户名"
+  },
+  "cost_plan": {
+    "description": "成本计算默认方案",
+    "type": "string",
+    "default": "default_plan",
+    "hint": "执行 .成本 时未指定方案时使用的后端方案名"
+  },
+  "bind_allow_group_ids": {
+    "description": "允许执行绑定的群号",
+    "type": "string",
+    "default": "",
+    "hint": "多个群号用英文逗号分隔，例如 123456,654321；留空表示不限制"
+  },
+  "vip_white_session_ids": {
+    "description": "跳过 VIP 校验的会话",
+    "type": "list",
+    "default": [],
+    "hint": "列表内的会话标识不做 VIP 判断，可用 /ssid 指令查看当前会话标识"
   }
+}

@@ -9,7 +9,12 @@ from .src.identity import IdentityStore, set_identity_store
 from .src.picture_render_server.picture_render import set_t2i_renderer
 
 
-@register("helloworld", "YourName", "一个简单的 Hello World 插件", "1.0.0")
+@register(
+    "astrbot_plugin_kahunasystem",
+    "AraragiEro",
+    "EVE Online 市场查价、制造成本与 zKill 战报查询",
+    "0.0.10",
+)
 class MyPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)

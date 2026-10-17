@@ -1,11 +1,6 @@
 ---
 name: kahunasystem
-description: EVE online相关的工具
-- 物品名匹配
-- 价格查找，成本计算
-- 市场,数据分析,生产推荐
-- 蓝图缺失状态分析
-- 查询医保余额
+description: 当用户需要查询 EVE Online 物品价格、计算制造成本与利润率、询问当前造什么更赚钱或需要生产推荐，以及查询计划蓝图缺失状态、公司医保额度时使用。先调用 kahunasystem_apiinfo 确认必要参数，再按下方场景路由调用 kahunasystem_apirun。
 ---
 
 **重要**

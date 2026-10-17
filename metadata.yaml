@@ -1,6 +1,48 @@
-name: kahunasystem_api # 插件唯一识别名，以 astrbot_plugin_ 前缀开头
-display_name: kahunasystem_api # 用于展示的名字，可以是方便人类阅读的名字（需要版本 >= v4.5.0，低版本不会报错，请放心填写）
-desc: kahunasystem 的 API 插件。 # 插件简短描述
-version: v0.0.10 # 插件版本号。格式：v1.1.1 或者 v1.1
-author: AraragiEro # 作者
-repo: https://github.com/AraragiEro/astrbot_plugin_kahunasystem.git # 插件的仓库地址
+name: astrbot_plugin_kahunasystem
+display_name: EVE 市场助手（Kahuna）
+short_desc: EVE Online 市场查价、制造成本与 zKill 战报查询。
+desc: |
+  为 AstrBot 提供 EVE Online 一体化查询能力：Jita / FRT 市场比价、物品制造成本明细、
+  蓝图缺失分析、市场推荐、zKillboard 链接生成，并向 Agent 提供配套 Skills。
+
+  ## 指令
+
+  | 指令 | 说明 | 权限 |
+  | --- | --- | --- |
+  | `.ojita <物品> [数量]` | 查询 Jita 市场价（含图表） | 公开 |
+  | `.frt <物品> [数量]` | 查询 FRT 联盟市场价（含图表） | 公开 |
+  | `.成本 <物品>` | 计算制造成本明细（含图表，别名 `cost`） | 公开 |
+  | `.绑定kahunasystem <uuid>` | 将 QQ 号绑定到 kahunasystem 账号 | 公开 |
+  | `/绑定QQ <QQ号>` | 绑定当前平台身份与 QQ 号（QQ 官方机器人必做一次） | 公开 |
+  | `/解绑QQ` | 解除当前身份的 QQ 号绑定 | 公开 |
+  | `/我的绑定` | 查看当前身份的绑定情况 | 公开 |
+  | `/绑定审计 <QQ号>` | 查看绑定 / 解绑审计 | 管理员 |
+
+  指令前缀由 AstrBot 的 `wake_prefix` 决定（默认 `/`）。
+
+  ## 前置要求
+
+  本插件是**客户端**，需要自建后端 [EveKahunaSystem](https://github.com/AraragiEro/EveKahunaSystem)
+  提供数据接口，并在插件配置中填写后端地址、成本计算默认用户 / 方案、服务密钥。
+  未配置后端时指令会返回「暂时不可用，请稍后再试」。
+
+  ## 常见场景
+
+  - 群内快速查价与比价，无需打开网页；
+  - 制造前核算成本与利润，判断是否值得投产；
+  - 让 Agent 借助内置 Skills 完成物品名匹配、蓝图缺失分析与战报链接生成。
+version: 0.0.10
+author: AraragiEro
+repo: https://github.com/AraragiEro/astrbot_plugin_kahunasystem
+astrbot_version: ">=4.13.0"
+support_platforms:
+  - aiocqhttp
+  - qq_official
+  - qq_official_webhook
+tags:
+  - eve-online
+  - 市场查询
+  - 价格
+  - 制造成本
+  - 工业
+social_link: https://github.com/AraragiEro

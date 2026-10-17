@@ -1,9 +1,6 @@
 ---
 name: zkburl_generator
-description: zKillboard API URL 生成器
-- 根据用户提供的条件生成 zKillboard API 请求 URL
-- 支持多种参数组合（实体筛选、类型筛选、时间筛选等）
-- 自动验证 URL 是否符合 API 规范
+description: 当用户需要查询 zKillboard 的击杀或损失记录、按角色/公司/联盟/舰船/星系等条件筛选战报时使用。根据条件生成符合规范的 zKillboard API URL 并自检修饰符规则，再把 URL 交给后续工具分析，不要直接抓取 URL 内容。
 ---
 
 **重要**

@@ -4,8 +4,13 @@
 # requirements 安装被拦截并判定为 DependencyConflictError，插件随之加载失败。
 #
 # 因此这里只保留不与核心重叠的最小依赖：
-#   - aiohttp / jinja2 / requests 已随 AstrBot 核心环境提供，无需固定版本
+#   - aiohttp / jinja2 已随 AstrBot 核心环境提供，无需固定版本
+#   - 不使用 requests 做网络请求（AstrBot 开发原则要求 aiohttp / httpx 等异步库），
+#     历史遗留的 requests 依赖已移除
 #   - 不要再加入 pyppeteer / imgkit 等渲染依赖（见下方说明）
+#
+# 兼容性：本插件要求 AstrBot >= 4.13.0（插件内置 Skills 自 v4.13 起支持），
+# 该约束同时写在 metadata.yaml 的 astrbot_version 字段中。
 #
 # 历史问题（2026-10-15 加载失败）：旧列表里带有 openai==1.66.3、pydantic==2.10.6、
 # websockets<11、sqlalchemy==2.0.40、quart==0.20.0 等固定版本，与核心已安装版本冲突，
@@ -17,4 +22,3 @@
 # 远程渲染不可用时依次回退「本地 pyppeteer（若环境里恰好可用）」→「纯文本结果」。
 # 相关实现见 src/picture_render_server/picture_render.py 与 src/event.py。
 jinja2
-requests
