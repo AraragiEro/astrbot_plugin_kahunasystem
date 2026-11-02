@@ -18,7 +18,7 @@ from datetime import datetime
 
 from astrbot.api import logger
 
-from .seat_esi import resolve_tickers
+from .seat_esi import resolve_main_characters
 from .seat_roster import load_roster
 
 # 最近一次同步结果（KV）
@@ -133,10 +133,10 @@ async def sync_group_cards(
         if str(item.get("character") or "").strip()
     ]
     try:
-        ticker_map = await resolve_tickers(plugin, names)
+        character_map = await resolve_main_characters(plugin, names)
     except Exception as exc:
-        logger.warning(f"获取主角色公司缩写失败，回退默认值：{exc}")
-        ticker_map = {}
+        logger.warning(f"读取主角色信息失败，回退公司角色：{exc}")
+        character_map = {}
 
     stats = {
         "group_id": group_id,
@@ -166,10 +166,11 @@ async def sync_group_cards(
             continue
 
         character = str(item.get("character") or "").strip()
-        ticker = str(
-            (ticker_map.get(character) or {}).get("ticker") or default_ticker
-        )
-        expected = build_expected_card(item.get("nickname", ""), character, ticker)
+        meta = character_map.get(character) or {}
+        # 主角色名优先生效；解析不到时回退为「我们公司的这个角色」
+        main_name = str(meta.get("main_name") or character)
+        ticker = str(meta.get("ticker") or default_ticker)
+        expected = build_expected_card(item.get("nickname", ""), main_name, ticker)
         current = info["card"]
         stats["checked"] += 1
 
