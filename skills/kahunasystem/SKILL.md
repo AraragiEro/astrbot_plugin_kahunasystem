@@ -1,6 +1,6 @@
 ---
 name: kahunasystem
-description: 当用户需要查询 EVE Online 物品价格、计算制造成本与利润率、询问当前造什么更赚钱或需要生产推荐，以及查询计划蓝图缺失状态、公司医保额度时使用。先调用 kahunasystem_apiinfo 确认必要参数，再按下方场景路由调用 kahunasystem_apirun。
+description: 当用户需要查询 EVE Online 物品价格、计算制造成本与利润率、询问当前造什么更赚钱或需要生产推荐，以及查询计划蓝图缺失状态时使用。先调用 kahunasystem_apiinfo 确认必要参数，再按下方场景路由调用 kahunasystem_apirun。
 ---
 
 **重要**
@@ -30,9 +30,3 @@ description: 当用户需要查询 EVE Online 物品价格、计算制造成本�
 ## 当用户询问计划的蓝图状态、缺失蓝图数量、发明计划相关信息时
 1. 通过api获取信息
 2. 处理和输出规范 -> `references/skill_missing_blueprint_workflow_display.md`
-
-## 当用户在群内查询自己的医保额度时
-1. 通过api调用 `get_company_medica_vouchers` 获取公司医保额度清单。
-2. 从群昵称中提取角色名：优先取 `/` 后半段，例如 `SETCR-Jack/KomeijiKoishi514` 的角色名是 `KomeijiKoishi514`。
-3. 按角色名在医保额度清单中匹配对应额度。
-4. 输出规范 -> `references/skill_company_medica_vouchers_lookup.md`
