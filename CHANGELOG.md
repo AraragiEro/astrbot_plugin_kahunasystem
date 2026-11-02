@@ -6,6 +6,7 @@
 - `.成本` 不再传 `user_name`（成本作用域由后端按 QQ 绑定解析），拿不到 QQ 号时省略 `qq` 参数回落 system 作用域
 - src/api_client.py 精简为只保留绑定调用（移除 api_info / api_run / api_price_detail / api_frt_price_detail / api_type_cost / api_qq_bind / api_qq_vip_state 及 zKill/ESI 残留封装）
 - 配置新增 `mcp_url`（默认 `http://127.0.0.1:9000/sse`）；`kahunasystem_host` 仅绑定使用；`cost_username` 标记废弃
+- **修复**：`mcp_url` 原默认值 `127.0.0.1:9000` 在 Docker 部署下必然连不上（MCP 实际是 9274，且插件与后端不在同一容器）→ 改为**留空自动推导**「`kahunasystem_host` 同主机 + 9274 + `/sse`」；同时修掉后端地址带尾斜杠时绑定接口拼出 `//api/plugin` 的问题
 
 ### 未发布（插件市场规范整理）
 上架前置的元数据与规范整理，不改变运行时行为

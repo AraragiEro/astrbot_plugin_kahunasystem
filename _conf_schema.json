@@ -6,10 +6,10 @@
     "hint": "EveKahunaSystem 后端根地址，仅用于 QQ 绑定（/api/plugin/qq/bind）；查价与成本已改走 MCP"
   },
   "mcp_url": {
-    "description": "MCP 服务地址",
+    "description": "MCP 服务地址（留空自动推导）",
     "type": "string",
-    "default": "http://127.0.0.1:9000/sse",
-    "hint": "Kahuna MCP 中间层（SSE）地址，查价 / 成本指令都通过它取数；默认 http://127.0.0.1:9000/sse"
+    "default": "",
+    "hint": "留空时按「后端地址同主机 + 9274 端口 + /sse」自动推导（Docker 部署就是这个）。插件与后端不在同一容器时不要填 127.0.0.1；脚本启动的 MCP（9000 端口）请显式填写，例如 http://10.0.0.5:9000/sse"
   },
   "service_api_key": {
     "description": "服务间认证密钥",

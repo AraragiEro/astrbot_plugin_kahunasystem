@@ -55,7 +55,7 @@ async def cost(self, event: AstrMessageEvent, require_str: str):
 
 ### 数据通道（MCP / HTTP 分工）
 - **读能力走 MCP**：`.ojita` / `.frt` / `.成本` 通过 `src/mcp_client.py` 调用 MCP tools
-  （SSE；`mcp_url` 配置，默认 `http://127.0.0.1:9000/sse`）
+  （SSE；`mcp_url` 留空时按「后端主机 + 9274 + /sse」推导）
 - **写能力走 HTTP**：`.绑定kahunasystem` 通过 `src/api_client.py` 调
   `POST /api/plugin/qq/bind`（服务密钥认证）
 - `src/mcp_client.py` 用 aiohttp 手写最小 SSE + JSON-RPC，**不要**引入 mcp SDK
@@ -122,8 +122,8 @@ async def cost(self, event: AstrMessageEvent, require_str: str):
 ### 配置要求
 ```ini
 # 插件配置（AstrBot 面板 → _conf_schema.json）
-mcp_url = "http://127.0.0.1:9000/sse"        # 查价 / 成本走 MCP
-kahunasystem_host = "http://localhost:9527"  # 仅 QQ 绑定使用
+mcp_url = ""                                 # 留空自动：后端主机 + 9274 + /sse
+kahunasystem_host = "http://localhost:9527"  # 仅 QQ 绑定使用（同时作为 mcp_url 的推导来源）
 service_api_key = "<与后端 [SERVICE] API_KEY 一致>"
 cost_plan = "default_plan"                   # 成本计算默认方案
 ```
@@ -228,7 +228,8 @@ except Exception as e:
 - 其他指令无并发限制
 
 # 配置要求
-- `mcp_url`: MCP 中间层地址（默认 `http://127.0.0.1:9000/sse`），查价/成本走它
+- `mcp_url`: MCP 中间层地址；**留空自动推导**为「`kahunasystem_host` 主机 + 9274 + `/sse`」，
+  插件与后端不在同一容器时绝不能填 `127.0.0.1`
 - `kahunasystem_host` + `service_api_key`: 仅 QQ 绑定使用
 - `cost_plan`: 成本计算默认方案名（`cost_username` 已废弃，不再生效）
 - 配置由 AstrBot 管理面板注入到 `AstrBotConfig`

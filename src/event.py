@@ -6,7 +6,7 @@ from astrbot.core.message.components import Plain
 from astrbot.core import logger
 
 from .api_client import ApiError, bind_qq, clip_text
-from .mcp_client import DEFAULT_MCP_URL, KahunaMcpClient, McpError
+from .mcp_client import KahunaMcpClient, McpError, derive_mcp_url
 from .picture_render_server.render_template import (
     render_price_res_pic,
     render_single_cost_pic,
@@ -168,12 +168,21 @@ class Event:
 
     @staticmethod
     def _mcp_url() -> str:
-        """MCP 服务地址（config: mcp_url，默认本机 9000 端口）。"""
+        """MCP 服务地址：优先 config.mcp_url；留空时按后端地址同主机 + 9274 推导。
+
+        插件与后端通常不在同一容器，127.0.0.1 指向插件自己，不能当默认值。
+        """
         try:
-            url = Event.config.get("mcp_url")
+            url = (Event.config.get("mcp_url") or "").strip()
         except Exception:
-            url = None
-        return (url or DEFAULT_MCP_URL).strip()
+            url = ""
+        if url:
+            return url
+        try:
+            host = (Event.config.get("kahunasystem_host") or "").strip()
+        except Exception:
+            host = ""
+        return derive_mcp_url(host)
 
     @staticmethod
     async def _fetch_price(event: AstrMessageEvent, item_name: str, market_zone: str):

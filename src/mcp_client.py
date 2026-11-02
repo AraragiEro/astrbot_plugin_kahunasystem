@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import json
 from typing import Any
+from urllib.parse import urlsplit
 
 import aiohttp
 from astrbot.api import logger
@@ -31,7 +32,10 @@ from astrbot.api import logger
 # 与服务端 mcp SDK 协商的协议版本（服务端支持 2024-11-05 / 2025-03-26 / 2025-06-18）
 PROTOCOL_VERSION = "2025-06-18"
 
-DEFAULT_MCP_URL = "http://127.0.0.1:9000/sse"
+# MCP 中间件端口：Docker 部署固定 9274（docker/supervisord.conf），脚本启动默认 9000。
+# 配置里不填 mcp_url 时按后端地址同主机 + 本端口推导（见 derive_mcp_url）。
+MCP_PORT = 9274
+DEFAULT_MCP_URL = f"http://127.0.0.1:{MCP_PORT}/sse"
 
 _CONNECT_TIMEOUT = 10
 _ENDPOINT_TIMEOUT = 15
@@ -56,6 +60,24 @@ def _normalize_base(url: str) -> str:
     if not (base.startswith("http://") or base.startswith("https://")):
         base = f"http://{base}"
     return base
+
+
+def derive_mcp_url(kahunasystem_host: str) -> str:
+    """由后端地址推导 MCP 地址：沿用协议与主机，端口换成 :data:`MCP_PORT`。
+
+    Docker 部署里后端（9527）与 MCP 中间件（9274）在同一容器，主机相同、
+    端口不同；插件与后端通常不在同一容器，所以**不能**用 127.0.0.1，
+    必须沿用后端地址里的主机。独立脚本部署（MCP 9000）请显式配置 mcp_url。
+    """
+    text = (kahunasystem_host or "").strip().rstrip("/")
+    if not text:
+        return DEFAULT_MCP_URL
+    if "://" not in text:
+        text = f"http://{text}"
+    parts = urlsplit(text)
+    if not parts.hostname:
+        return DEFAULT_MCP_URL
+    return f"{parts.scheme or 'http'}://{parts.hostname}:{MCP_PORT}/sse"
 
 
 def _extract_text(result: dict) -> str:

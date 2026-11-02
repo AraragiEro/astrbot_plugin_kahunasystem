@@ -125,9 +125,10 @@ def _log_failure(method: str, api_url: str, status: int, body: str) -> None:
 
 
 def _build_url(host: str, path: str) -> str:
-    if host.startswith("http://") or host.startswith("https://"):
-        return f"{host}{path}"
-    return f"http://{host}{path}"
+    base = (host or "").strip().rstrip("/")
+    if base.startswith("http://") or base.startswith("https://"):
+        return f"{base}{path}"
+    return f"http://{base}{path}"
 
 
 async def bind_qq(host: str, qq, bind_uuid: str) -> dict:
