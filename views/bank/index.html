@@ -78,6 +78,21 @@
       .card .v { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
       .row-actions { display: flex; gap: 6px; }
       .empty { padding: 22px; text-align: center; color: var(--muted); }
+      /* 页内弹窗：不用 confirm/prompt —— AstrBot 视图在 iframe 里，
+         sandbox 未开 allow-modals 时这两者会被静默禁用（confirm 直接返回 false） */
+      .dlg-overlay {
+        position: fixed; inset: 0; background: rgba(0, 0, 0, .45);
+        display: flex; align-items: center; justify-content: center; z-index: 9999;
+      }
+      .dlg {
+        background: var(--bg); border: 1px solid var(--line); border-radius: 12px;
+        padding: 18px 20px; min-width: 320px; max-width: 480px;
+        box-shadow: 0 14px 44px rgba(0, 0, 0, .32);
+      }
+      .dlg-title { font-weight: 600; margin-bottom: 8px; }
+      .dlg-msg { color: var(--muted); white-space: pre-wrap; margin-bottom: 12px; line-height: 1.65; }
+      .dlg-input { width: 100%; margin-bottom: 14px; }
+      .dlg-actions { display: flex; gap: 8px; justify-content: flex-end; }
       details.result { margin-top: 10px; border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; }
       details.result summary { cursor: pointer; color: var(--muted); }
       ul.list { margin: 8px 0 0; padding-left: 18px; }

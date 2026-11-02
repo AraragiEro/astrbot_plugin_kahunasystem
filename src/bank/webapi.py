@@ -28,6 +28,11 @@ def make_bank_api(plugin):
         except Exception as exc:  # 任何异常都转成结构化结果，前端不白屏
             logger.error(f"成员银行 Web 接口失败（{action}）：{exc}")
             result = {"ok": False, "message": f"操作失败：{exc}"}
+        # 每个动作都记一行：排查"点了没反应"时能区分是前端没触发还是后端拒绝
+        logger.info(
+            "成员银行 Web：action=%s ok=%s msg=%s",
+            action or "(空)", result.get("ok"), str(result.get("message") or "")[:120],
+        )
         return json_response(result)
 
     return handler

@@ -74,6 +74,60 @@ function parseIsk(raw) {
   return Math.round(parseFloat(m[1]) * base);
 }
 
+/** 安全绑定：元素不存在就跳过，避免一处缺失拖垮整个 init。 */
+function safeOn(id, event, handler) {
+  const el = document.getElementById(id);
+  if (!el) {
+    console.warn(`[bank] 缺少元素 #${id}，跳过事件绑定`);
+    return;
+  }
+  el.addEventListener(event, handler);
+}
+
+/**
+ * 页内弹窗，替代被 iframe 禁用的 confirm/prompt。
+ * input=true 时返回输入的字符串，否则返回 true；取消返回 null。
+ */
+function uiDialog({ title, message, input, placeholder, defaultValue, danger }) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "dlg-overlay";
+    overlay.innerHTML = `
+      <div class="dlg">
+        <div class="dlg-title">${escapeHtml(title || "确认")}</div>
+        <div class="dlg-msg">${escapeHtml(message || "")}</div>
+        ${input ? `<input class="dlg-input" type="text" spellcheck="false"
+            placeholder="${escapeHtml(placeholder || "")}"
+            value="${escapeHtml(defaultValue || "")}" />` : ""}
+        <div class="dlg-actions">
+          <button class="ghost" data-act="cancel">取消</button>
+          <button class="${danger ? "ghost danger" : "primary"}" data-act="ok">确定</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const inputEl = overlay.querySelector(".dlg-input");
+    const close = (val) => {
+      overlay.remove();
+      resolve(val);
+    };
+    overlay.querySelector('[data-act="cancel"]').onclick = () => close(null);
+    overlay.querySelector('[data-act="ok"]').onclick = () =>
+      close(input ? (inputEl.value || "") : true);
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) close(null);
+    });
+    overlay.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") close(null);
+    });
+    if (inputEl) {
+      inputEl.focus();
+      inputEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") close(inputEl.value || "");
+      });
+    }
+  });
+}
+
 // ---------------- 账户 ----------------
 
 let accountsCache = [];
@@ -157,10 +211,16 @@ async function onAccountAction(event) {
     return;
   }
   if (act === "allowance") {
-    const raw = prompt(`给 ${name}（${qq}）发放额外津贴，额度：\n支持 1.5b / 5e / 1500000000`);
+    const raw = await uiDialog({
+      title: "发放额外津贴",
+      message: `给 ${name}（${qq}）发放，额度支持 1.5b / 5e / 1500000000`,
+      input: true,
+      placeholder: "例如 5e",
+    });
+    if (raw === null) return;
     const amount = parseIsk(raw);
     if (!Number.isFinite(amount) || amount <= 0) {
-      if (raw !== null) msg("accounts-msg", "额度格式不对", "err");
+      msg("accounts-msg", "额度格式不对", "err");
       return;
     }
     try {
@@ -173,10 +233,16 @@ async function onAccountAction(event) {
     return;
   }
   if (act === "adjust") {
-    const raw = prompt(`调整 ${name}（${qq}）的余额，正数增加、负数减少：\n支持 -1b / 5e / 1500000000`);
+    const raw = await uiDialog({
+      title: "调整余额",
+      message: `调整 ${name}（${qq}）的余额，正数增加、负数减少\n支持 -1b / 5e / 1500000000`,
+      input: true,
+      placeholder: "例如 -1b",
+    });
+    if (raw === null) return;
     const amount = parseIsk(raw);
     if (!Number.isFinite(amount) || amount === 0) {
-      if (raw !== null) msg("accounts-msg", "额度格式不对（不能为 0）", "err");
+      msg("accounts-msg", "额度格式不对（不能为 0）", "err");
       return;
     }
     try {
@@ -226,7 +292,12 @@ async function onOrderAction(event) {
   const rejectBtn = event.target.closest("button[data-reject]");
   if (confirmBtn) {
     const id = Number(confirmBtn.dataset.confirm);
-    const raw = prompt(`订单 #${id} 的消费额度：\n支持 15e / 1.5b / 1500000000`);
+    const raw = await uiDialog({
+      title: `确认订单 #${id}`,
+      message: "填写消费额度，支持 15e / 1.5b / 1500000000",
+      input: true,
+      placeholder: "例如 15e",
+    });
     if (raw === null) return;
     const amount = parseIsk(raw);
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -247,7 +318,12 @@ async function onOrderAction(event) {
   }
   if (rejectBtn) {
     const id = Number(rejectBtn.dataset.reject);
-    if (!confirm(`确定驳回订单 #${id}？驳回后不扣款。`)) return;
+    const ok = await uiDialog({
+      title: "驳回订单",
+      message: `确定驳回订单 #${id}？驳回后不扣款。`,
+      danger: true,
+    });
+    if (!ok) return;
     try {
       const res = await api("order_reject", { order_id: id });
       msg("orders-msg", res.message || "已驳回", "ok");
@@ -305,7 +381,11 @@ async function onImportApply() {
     msg("import-msg", "请填写结算期间（YYYY-MM）", "err");
     return;
   }
-  if (!confirm(`确定把这份台账导入？期间 ${period}。\n重复导入不会重复记账。`)) return;
+  const ok = await uiDialog({
+    title: "确认导入",
+    message: `确定把这份台账导入？期间 ${period}。\n重复导入不会重复记账。`,
+  });
+  if (!ok) return;
   msg("import-msg", "导入中…");
   try {
     const res = await api("import_apply", { text, period });
@@ -359,7 +439,11 @@ async function onSettlePreview() {
 async function onSettleApply() {
   const period = document.getElementById("settle-period").value.trim();
   if (!period) { msg("settle-msg", "请填写 PAP 月份（YYYY-MM）", "err"); return; }
-  if (!confirm(`确定按 ${period} 的 PAP 执行发放？\n会先把上月奖励结转入余额，再发本月奖励。`)) return;
+  const ok = await uiDialog({
+    title: "执行发放",
+    message: `确定按 ${period} 的 PAP 执行发放？\n会先把上月奖励结转入余额，再发本月奖励。`,
+  });
+  if (!ok) return;
   msg("settle-msg", "执行中…");
   try {
     const data = await api("settle_apply", { period });
@@ -443,37 +527,53 @@ function initTabs() {
 }
 
 function init() {
+  // 脚本出错时直接显示在顶部，避免"点了没反应"却看不到原因
+  window.addEventListener("error", (e) => {
+    const bar = document.createElement("div");
+    bar.style.cssText =
+      "position:fixed;left:0;right:0;top:0;z-index:9998;padding:10px 16px;" +
+      "background:var(--err);color:#fff;font-size:13px;";
+    bar.textContent = "页面脚本错误：" + (e.message || e.error || "未知");
+    document.body.appendChild(bar);
+    setTimeout(() => bar.remove(), 8000);
+  });
+
   initTabs();
 
-  document.getElementById("accounts-refresh").addEventListener("click", loadAccounts);
-  document.getElementById("accounts-filter").addEventListener("input", renderAccounts);
-  document.getElementById("accounts-body").addEventListener("click", onAccountAction);
+  safeOn("accounts-refresh", "click", loadAccounts);
+  safeOn("accounts-filter", "input", renderAccounts);
+  safeOn("accounts-body", "click", onAccountAction);
 
-  document.getElementById("orders-refresh").addEventListener("click", loadOrders);
-  document.getElementById("orders-body").addEventListener("click", onOrderAction);
+  safeOn("orders-refresh", "click", loadOrders);
+  safeOn("orders-body", "click", onOrderAction);
 
-  document.getElementById("ledger-refresh").addEventListener("click", loadLedger);
-  document.getElementById("ledger-kind").addEventListener("change", loadLedger);
-  document.getElementById("ledger-period").addEventListener("change", loadLedger);
-  document.getElementById("ledger-keyword").addEventListener("keydown", (e) => {
+  safeOn("ledger-refresh", "click", loadLedger);
+  safeOn("ledger-kind", "change", loadLedger);
+  safeOn("ledger-period", "change", loadLedger);
+  safeOn("ledger-keyword", "keydown", (e) => {
     if (e.key === "Enter") loadLedger();
   });
-  document.getElementById("ledger-clear").addEventListener("click", () => {
-    document.getElementById("ledger-keyword").value = "";
-    document.getElementById("ledger-period").value = "";
-    document.getElementById("ledger-kind").value = "";
+  safeOn("ledger-clear", "click", () => {
+    const kw = document.getElementById("ledger-keyword");
+    const pd = document.getElementById("ledger-period");
+    const kd = document.getElementById("ledger-kind");
+    if (kw) kw.value = "";
+    if (pd) pd.value = "";
+    if (kd) kd.value = "";
     loadLedger();
   });
 
-  document.getElementById("import-preview").addEventListener("click", onImportPreview);
-  document.getElementById("import-apply").addEventListener("click", onImportApply);
+  safeOn("import-preview", "click", onImportPreview);
+  safeOn("import-apply", "click", onImportApply);
 
-  document.getElementById("settle-preview").addEventListener("click", onSettlePreview);
-  document.getElementById("settle-apply").addEventListener("click", onSettleApply);
+  safeOn("settle-preview", "click", onSettlePreview);
+  safeOn("settle-apply", "click", onSettleApply);
 
   const period = lastMonth();
-  document.getElementById("settle-period").value = period;
-  document.getElementById("import-period").value = period;
+  const settlePeriod = document.getElementById("settle-period");
+  const importPeriod = document.getElementById("import-period");
+  if (settlePeriod) settlePeriod.value = period;
+  if (importPeriod) importPeriod.value = period;
 
   loadAccounts();
 }
