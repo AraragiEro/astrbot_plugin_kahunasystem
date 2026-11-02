@@ -267,7 +267,7 @@ class MyPlugin(Star):
 
     @filter.llm_tool(name="bank_my_account")
     async def bank_my_account(self, event: AstrMessageEvent) -> str:
-        """查询当前用户自己的成员银行账户。
+        """查询当前用户自己的成员银行(医保)账户。
 
         返回余额、额外津贴、当月奖励、三桶合计与最近流水。
         只能查当前会话发送者本人，不接受指定他人的参数。
