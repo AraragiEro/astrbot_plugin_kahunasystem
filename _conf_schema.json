@@ -166,6 +166,12 @@
         "type": "list",
         "default": [],
         "hint": "只审核列表里的群，例如 [\"577166101\"]；留空则不审核"
+      },
+      "reject_reason": {
+        "description": "拒绝理由",
+        "type": "text",
+        "default": "您不是我司成员，请联系管理员。",
+        "hint": "申请人 QQ 不在名单时返回给他的文字，可自定义"
       }
     }
   }

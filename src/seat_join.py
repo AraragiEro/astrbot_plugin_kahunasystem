@@ -17,12 +17,19 @@ from .seat_config import get as get_cfg
 from .seat_rename import find_aiocqhttp_bot
 from .seat_roster import load_roster
 
-# 拒绝时给申请人的理由
-REJECT_REASON = "您不是我司成员，请联系管理员。"
+# 拒绝时给申请人的默认理由（可在插件配置中覆盖）
+DEFAULT_REJECT_REASON = "您不是我司成员，请联系管理员。"
 
 
 def _cfg(plugin, key: str, default):
     return get_cfg(plugin, "seat_join", key, default)
+
+
+def _reject_reason(plugin) -> str:
+    """读取自定义拒绝理由，空值时回退默认文案。"""
+    value = _cfg(plugin, "reject_reason", DEFAULT_REJECT_REASON)
+    text = str(value or "").strip()
+    return text or DEFAULT_REJECT_REASON
 
 
 def configured_group_ids(plugin) -> list[str]:
@@ -71,7 +78,7 @@ async def handle_group_request(plugin, raw_event) -> dict | None:
         return None
 
     approve = user_id in allowed_qqs
-    reason = "" if approve else REJECT_REASON
+    reason = "" if approve else _reject_reason(plugin)
     debug = bool(_cfg(plugin, "debug", False))
 
     result = {
