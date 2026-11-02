@@ -386,14 +386,16 @@ function renderLedger(data) {
   const list = data.entries || [];
   const body = document.getElementById("ledger-body");
   if (!list.length) {
-    body.innerHTML = `<tr><td colspan="9" class="empty">没有匹配的流水</td></tr>`;
+    body.innerHTML = `<tr><td colspan="11" class="empty">没有匹配的流水</td></tr>`;
   } else {
     body.innerHTML = list.map((e) => `
       <tr>
         <td class="muted">${escapeHtml(e.created_at)}</td>
+        <td>${escapeHtml(e.period) || "<span class='muted'>—</span>"}</td>
         <td>${escapeHtml(e.character) || "<span class='muted'>—</span>"}</td>
         <td class="muted">${escapeHtml(e.qq_id)}</td>
         <td><span class="chip">${escapeHtml(e.kind_label)}</span></td>
+        <td class="num">${e.pap === null || e.pap === undefined ? "<span class='muted'>—</span>" : escapeHtml(e.pap)}</td>
         <td class="num" style="color:${e.amount < 0 ? "var(--err)" : "var(--ok)"}">${escapeHtml(e.amount_text)}</td>
         <td class="num">${escapeHtml(e.balance_text)}</td>
         <td class="num">${escapeHtml(e.allowance_text)}</td>

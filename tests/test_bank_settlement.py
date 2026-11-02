@@ -211,6 +211,33 @@ class StorageTests(unittest.TestCase):
         # 已确认的订单不能再改
         self.assertFalse(bankdb.set_order_status(self.conn, oid, "rejected"))
 
+    def test_init_schema_adds_pap_column_to_old_db(self):
+        """线上老库没有 pap 列，init_schema 必须自动补上（增量迁移）。"""
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.executescript(
+            """
+            CREATE TABLE ledger (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                qq_id           TEXT    NOT NULL,
+                period          TEXT    NOT NULL DEFAULT '',
+                kind            TEXT    NOT NULL,
+                amount          INTEGER NOT NULL,
+                balance_after   INTEGER NOT NULL,
+                allowance_after INTEGER NOT NULL,
+                order_id        INTEGER,
+                operator        TEXT    NOT NULL DEFAULT 'system',
+                idempotency_key TEXT    NOT NULL UNIQUE,
+                note            TEXT    NOT NULL DEFAULT '',
+                created_at      TEXT    NOT NULL
+            );
+            """
+        )
+        bankdb.init_schema(conn)
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(ledger)")}
+        self.assertIn("pap", cols)
+        conn.close()
+
     def test_settlement_run_upsert(self):
         bankdb.save_run(self.conn, "2026-10", status="preview", total_reward=E)
         self.assertEqual(bankdb.get_run(self.conn, "2026-10")["status"], "preview")

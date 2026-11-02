@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS ledger (
     period          TEXT    NOT NULL DEFAULT '',
     kind            TEXT    NOT NULL,
     amount          INTEGER NOT NULL,
+    pap             REAL,
     balance_after   INTEGER NOT NULL,
     allowance_after INTEGER NOT NULL,
     order_id        INTEGER,
@@ -115,9 +116,21 @@ def connect(db_path: str | Path) -> sqlite3.Connection:
     return conn
 
 
+def _ensure_columns(conn: sqlite3.Connection) -> None:
+    """轻量增量迁移：给已存在的表补新列。
+
+    SQLite 没有 ``ALTER TABLE ... ADD COLUMN IF NOT EXISTS``，而线上库已经建好了，
+    ``CREATE TABLE IF NOT EXISTS`` 不会补列，所以这里显式检查一次。
+    """
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(ledger)")}
+    if "pap" not in cols:
+        conn.execute("ALTER TABLE ledger ADD COLUMN pap REAL")
+
+
 def init_schema(conn: sqlite3.Connection) -> None:
-    """建表（幂等）。"""
+    """建表（幂等），并补齐后续版本新增的列。"""
     conn.executescript(SCHEMA)
+    _ensure_columns(conn)
     conn.execute(
         "INSERT INTO meta(key, value) VALUES('schema_version', ?) "
         "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
@@ -223,25 +236,31 @@ def append_ledger(
     amount: int,
     balance_after: int,
     allowance_after: int,
+    pap: float | None = None,
     period: str = "",
     order_id: int | None = None,
     operator: str = "system",
     idempotency_key: str = "",
     note: str = "",
 ) -> bool:
-    """追加一条流水。幂等键冲突时返回 ``False``（不重复记账）。"""
+    """追加一条流水。幂等键冲突时返回 ``False``（不重复记账）。
+
+    ``pap`` 只在发放类流水里填，用来把「哪个月、多少 PAP、发多少钱」钉在同一条记录上，
+    事后不依赖 note 文本也能核对。
+    """
     try:
         conn.execute(
             """
             INSERT INTO ledger
-                (qq_id, period, kind, amount, balance_after, allowance_after,
+                (qq_id, period, kind, amount, pap, balance_after, allowance_after,
                  order_id, operator, idempotency_key, note, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                str(qq_id), period, kind, int(amount), int(balance_after),
-                int(allowance_after), order_id, operator, idempotency_key, note,
-                now_iso(),
+                str(qq_id), period, kind, int(amount),
+                None if pap is None else float(pap),
+                int(balance_after), int(allowance_after), order_id, operator,
+                idempotency_key, note, now_iso(),
             ),
         )
         return True

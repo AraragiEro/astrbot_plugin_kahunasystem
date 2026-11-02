@@ -329,5 +329,30 @@ class LedgerBrowseTests(unittest.TestCase):
         self.assertEqual(len(rewards), 1)
 
 
+    def test_reward_ledger_records_period_and_pap(self):
+        """发放流水必须一眼看出「哪个月、多少 PAP、发多少钱」。"""
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        bankdb.init_schema(conn)
+        service.apply_settlement(conn, "2026-10", self.ROWS)
+
+        rows = [r for r in bankdb.list_ledger(conn, period="2026-10")
+                if r["kind"] == "reward"]
+        by_qq = {r["qq_id"]: r for r in rows}
+        self.assertEqual(by_qq["1"]["period"], "2026-10")
+        self.assertEqual(by_qq["1"]["pap"], 18.0)
+        self.assertEqual(by_qq["1"]["amount"], 5 * E)
+        self.assertEqual(by_qq["2"]["pap"], 9.0)
+        self.assertEqual(by_qq["2"]["amount"], 3 * E)
+        self.assertIn("Start PAP 18", by_qq["1"]["note"])
+
+        # 明细接口要把 pap / period 一并吐给前端
+        data = handlers.ledger_entries(conn, period="2026-10", kind="reward")
+        entry = data["entries"][0]
+        self.assertIn("pap", entry)
+        self.assertEqual(entry["period"], "2026-10")
+        conn.close()
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

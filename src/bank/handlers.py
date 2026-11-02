@@ -297,6 +297,7 @@ def ledger_entries(
                 "period": r["period"],
                 "kind": r["kind"],
                 "kind_label": KIND_LABELS.get(r["kind"], r["kind"]),
+                "pap": r["pap"],
                 "amount_text": fmt_isk(r["amount"]),
                 "amount": r["amount"],
                 "balance_text": fmt_isk(r["balance_after"]),
@@ -435,7 +436,7 @@ def apply_import(
                 conn, qq_id=qq_id, kind="import", amount=total_in,
                 balance_after=acc.balance, allowance_after=acc.allowance,
                 period=period, operator=operator, idempotency_key=key,
-                note=f"历史快照导入（{name}）",
+                note=f"{period} 历史快照导入",
             ):
                 stats["written"] += 1
             if waste and bankdb.append_ledger(

@@ -235,11 +235,12 @@ def apply_settlement(
             bankdb.append_ledger(
                 conn,
                 qq_id=line.qq_id, kind="reward", amount=line.reward,
+                pap=line.strat_pap,
                 balance_after=new_acc.balance,
                 allowance_after=new_acc.allowance,
                 period=period, operator=operator,
                 idempotency_key=key,
-                note=f"Start PAP={line.strat_pap:g} -> {line.reward // 100_000_000}e",
+                note=f"{period} Start PAP {line.strat_pap:g} → {line.reward // 100_000_000}e",
             )
             report.total_reward += line.reward
             report.granted.append({
