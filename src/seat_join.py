@@ -14,6 +14,7 @@ from __future__ import annotations
 from astrbot.api import logger
 
 from .seat_config import get as get_cfg
+from .seat_kick import configured_qq_whitelist
 from .seat_rename import find_aiocqhttp_bot
 from .seat_roster import load_roster
 
@@ -77,7 +78,9 @@ async def handle_group_request(plugin, raw_event) -> dict | None:
         logger.warning("入群审核跳过：名单里没有任何 QQ 号")
         return None
 
-    approve = user_id in allowed_qqs
+    # 踢人白名单里的号同样放行：它们本来就被保护，不能在入群时被拒
+    kick_whitelist = configured_qq_whitelist(plugin)
+    approve = user_id in allowed_qqs or user_id in kick_whitelist
     reason = "" if approve else _reject_reason(plugin)
     debug = bool(_cfg(plugin, "debug", False))
 
