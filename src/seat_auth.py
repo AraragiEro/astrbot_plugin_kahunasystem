@@ -143,6 +143,26 @@ def _is_login_redirect(location: str) -> bool:
     return "/auth/login" in lowered or "/auth/eve" in lowered
 
 
+# SeAT 的 session cookie 名取决于 APP_NAME 配置：
+# - APP_NAME=SeAT 时会变成 seat_session；
+# - 未配置（或沿用 Laravel 默认）时是 laravel_session。
+# 实测 winterco 站点用的是 laravel_session，这里两种都认。
+SESSION_COOKIE_ALIASES = ("laravel_session", "seat_session")
+
+
+def _apply_session_alias(cookies: dict[str, str]) -> dict[str, str]:
+    """把已存在的 session cookie 名补齐成两种别名，兼容不同 SeAT 配置。
+
+    只做「缺哪个补哪个」，不覆盖已有值；两种都不存在时原样返回。
+    """
+    for name in SESSION_COOKIE_ALIASES:
+        if name in cookies:
+            for other in SESSION_COOKIE_ALIASES:
+                if other not in cookies:
+                    cookies[other] = cookies[name]
+    return cookies
+
+
 async def probe(cookies: dict[str, str], url: str) -> dict:
     """带 Cookie 请求一次目标页面，返回校验结论。
 
@@ -238,7 +258,7 @@ async def handle_validate_request(plugin):
     if not raw:
         return json_response({"status": "error", "message": "请先粘贴 Cookie"})
 
-    cookies = parse_cookie_string(raw)
+    cookies = _apply_session_alias(parse_cookie_string(raw))
     if not cookies:
         return json_response(
             {

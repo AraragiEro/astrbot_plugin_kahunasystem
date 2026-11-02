@@ -48,7 +48,9 @@ function setStatus(kind, text) {
 /**
  * 把两个输入框拼成 Cookie 字符串。
  *
- * - seat_session：允许只填值（自动补前缀），也允许贴完整的 `seat_session=...`；
+ * - laravel_session：允许只填值（自动补前缀），也允许贴完整的 `laravel_session=...`；
+ *   若站点把 APP_NAME 配成 SeAT（cookie 名变成 seat_session），贴完整的
+ *   `名字=值` 同样可用，后端两种别名都认；
  * - remember_web_*：名字带随机 hash，无法替用户补全，必须粘贴完整的 `名字=值`。
  */
 function buildCookie(sessionRaw, rememberRaw) {
@@ -57,7 +59,7 @@ function buildCookie(sessionRaw, rememberRaw) {
   const remember = (rememberRaw || "").trim();
 
   if (session) {
-    parts.push(session.includes("=") ? session : `seat_session=${session}`);
+    parts.push(session.includes("=") ? session : `laravel_session=${session}`);
   }
 
   if (remember) {
