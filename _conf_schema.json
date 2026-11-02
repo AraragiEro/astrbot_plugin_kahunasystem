@@ -3,7 +3,13 @@
     "description": "后端地址",
     "type": "string",
     "default": "http://127.0.0.1:9527",
-    "hint": "EveKahunaSystem 后端根地址，需包含协议与端口，例如 http://127.0.0.1:9527"
+    "hint": "EveKahunaSystem 后端根地址，仅用于 QQ 绑定（/api/plugin/qq/bind）；查价与成本已改走 MCP"
+  },
+  "mcp_url": {
+    "description": "MCP 服务地址",
+    "type": "string",
+    "default": "http://127.0.0.1:9000/sse",
+    "hint": "Kahuna MCP 中间层（SSE）地址，查价 / 成本指令都通过它取数；默认 http://127.0.0.1:9000/sse"
   },
   "service_api_key": {
     "description": "服务间认证密钥",
@@ -14,10 +20,10 @@
     "hint": "需与后端 config.toml 中 [SERVICE] API_KEY 完全一致，否则所有指令都会返回「暂时不可用」"
   },
   "cost_username": {
-    "description": "成本计算默认用户",
+    "description": "成本计算默认用户（已废弃）",
     "type": "string",
     "default": "default_user",
-    "hint": "执行 .成本 时未指定用户时使用的后端用户名"
+    "hint": "已废弃：成本缓存作用域由后端按 QQ 绑定解析，此项不再生效，可留空"
   },
   "cost_plan": {
     "description": "成本计算默认方案",

@@ -1,3 +1,12 @@
+### 未发布（查价链路迁移 MCP + 身份映射回退）
+配合后端淘汰 `/api/astrbot/*`，读能力改走 MCP，并回退 openid↔QQ 映射层
+- 新增 src/mcp_client.py：只用 aiohttp 手写最小 SSE + JSON-RPC 客户端（不引入 mcp SDK，避免核心依赖版本冲突），`.ojita` / `.frt` / `.成本` 改为调用 MCP tools `market_price_detail` / `market_type_cost`
+- `.绑定kahunasystem` 保留为 HTTP 调用，改走新接口 `POST /api/plugin/qq/bind`（服务密钥认证），不经过 MCP
+- 删除 src/identity.py 与 `绑定QQ / 解绑QQ / 我的绑定 / 绑定审计` 四条指令：业务身份直接用 `event.get_sender_id()`（OneBot 平台即真实 QQ 号）；`kahunasystem_get_my_qq` 保留但直接返回发送者 id
+- `.成本` 不再传 `user_name`（成本作用域由后端按 QQ 绑定解析），拿不到 QQ 号时省略 `qq` 参数回落 system 作用域
+- src/api_client.py 精简为只保留绑定调用（移除 api_info / api_run / api_price_detail / api_frt_price_detail / api_type_cost / api_qq_bind / api_qq_vip_state 及 zKill/ESI 残留封装）
+- 配置新增 `mcp_url`（默认 `http://127.0.0.1:9000/sse`）；`kahunasystem_host` 仅绑定使用；`cost_username` 标记废弃
+
 ### 未发布（插件市场规范整理）
 上架前置的元数据与规范整理，不改变运行时行为
 - metadata.yaml 重写：name 改为 astrbot_plugin_kahunasystem（符合官方 `astrbot_plugin_` 前缀规范、与仓库名一致），补 display_name / short_desc / 详细 desc / tags / astrbot_version(>=4.13.0) / support_platforms / social_link；version 去掉 v 前缀

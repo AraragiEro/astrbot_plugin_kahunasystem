@@ -1,10 +1,25 @@
+"""插件剩余的 HTTP 客户端：只保留 QQ 绑定。
+
+``/api/astrbot/*`` 那套（api_info 取 token → api_run 按 api_id 转发）已全面日落淘汰：
+查价 / 成本等**读能力**改由 MCP 中间层提供（见 ``src/mcp_client.py``）。
+
+绑定是**一次性写操作**，按约定不走 MCP，因此保留这一条最小 HTTP 调用：
+
+- ``POST /api/plugin/qq/bind``（服务密钥认证，请求头 ``X-Internal-API-Key``）
+
+错误处理原则不变：**响应体绝不回给用户**（后端/网关出错时是整页 HTML，
+2026-10-17 线上事故：整页 doctype 被灌进 QQ 群），只写日志；
+异常文本只含「状态码 + 极短摘要」。
+"""
+
 import json
 
 import aiohttp
 from astrbot.api import logger
 
 # 服务间认证密钥：由 main.py 在插件初始化时通过 set_service_api_key() 注入。
-# kahunabot 无法对 QQ 机器人做交互式登录，因此改用共享服务密钥（请求头 X-Internal-API-Key）。
+# QQ 机器人无法交互式登录，改用共享服务密钥
+# （与后端 config.toml 的 [SERVICE] API_KEY 一致）。
 _SERVICE_API_KEY = ""
 
 # 响应体写日志时的截断长度：保留足够排障的信息，又不至于把整页 HTML 灌进日志
@@ -13,15 +28,13 @@ _LOG_BODY_LIMIT = 500
 # 用户可见文本的截断长度：这些文本可能被直接回给 QQ 群，必须短
 _TEXT_LIMIT = 100
 
-# HTML 响应的一句话说明（多数情况是地址/反向代理路由配错，正文对用户毫无意义）
 _HTML_SUMMARY = "响应是网页 HTML（疑似后端地址或反向代理路由配错，内容已省略）"
 
-# 「200 但不是 JSON」的说明
-_NOT_JSON_SUMMARY = "后端返回的不是 JSON 数据（疑似网页或网关错误页）"
+QQ_BIND_PATH = "/api/plugin/qq/bind"
 
 
-def set_service_api_key(api_key: str):
-    """注入服务间认证密钥（应与 kahunabot config.toml 的 [SERVICE] API_KEY 一致）"""
+def set_service_api_key(api_key: str) -> None:
+    """注入服务间认证密钥（应与后端 config.toml 的 [SERVICE] API_KEY 一致）"""
     global _SERVICE_API_KEY
     _SERVICE_API_KEY = (api_key or "").strip()
 
@@ -71,11 +84,7 @@ def _extract_json_message(text: str) -> str:
 
 
 def _summarize_body(body: str) -> str:
-    """把响应体压成一句安全摘要：HTML 打码、JSON 取 message、其它截断。
-
-    摘要可能被回给用户，因此绝不放整段响应体——后端/网关返回的 HTML 页面
-    动辄几十 KB（Cloudflare 错误页、nginx 错误页、SPA 回退页）。
-    """
+    """把响应体压成一句安全摘要：HTML 打码、JSON 取 message、其它截断。"""
     text = (body or "").strip()
     if not text:
         return ""
@@ -91,10 +100,7 @@ class ApiError(ValueError):
     """后端接口调用失败（状态码非 200，或 200 但返回的不是 JSON）。
 
     ⚠️ 响应体**不提供给用户**，只用于写日志：QQ 群里的报错一律是固定文案
-    （见 src/event.py 的 api_error_for_user）。这里仍要收口，是因为
-    logger.error(f"...: {e}") 到处在用，异常文本不能夹带几十 KB 的 HTML。
-    因此 str(e) 只含「状态码 + 极短摘要」，原始响应体放在 .body，
-    仅供 _log_failure() 截断后写日志。
+    （见 src/event.py 的 api_error_for_user）。
     """
 
     def __init__(self, status: int, body: str = "", url: str = "", summary: str = ""):
@@ -118,184 +124,45 @@ def _log_failure(method: str, api_url: str, status: int, body: str) -> None:
     )
 
 
-async def _read_text(resp) -> str:
-    """统一按 UTF-8 读取响应体（后端固定 UTF-8，避免 charset 猜测出错）。"""
-    raw = await resp.read()
-    try:
-        return raw.decode("utf-8")
-    except UnicodeDecodeError:
-        return raw.decode("utf-8", errors="replace")
-
-
-def _parse_json_or_raise(text: str, api_url: str, status: int, method: str = "POST"):
-    try:
-        return json.loads(text)
-    except Exception:
-        _log_failure(method, api_url, status, text)
-        raise ApiError(status, text, api_url, summary=_NOT_JSON_SUMMARY)
-
-
 def _build_url(host: str, path: str) -> str:
     if host.startswith("http://") or host.startswith("https://"):
         return f"{host}{path}"
     return f"http://{host}{path}"
 
 
-async def get_json(host: str, path: str, timeout: int):
-    api_url = _build_url(host, path)
+async def bind_qq(host: str, qq, bind_uuid: str) -> dict:
+    """消费 Web 端生成的绑定指令，把 QQ 号绑定到账号（走 /api/plugin，需服务密钥）。"""
+    api_url = _build_url(host, QQ_BIND_PATH)
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(
-            api_url,
-            headers=_build_headers(),
-            timeout=aiohttp.ClientTimeout(total=timeout),
-        ) as resp:
-            text = await _read_text(resp)
-            if resp.status != 200:
-                _log_failure("GET", api_url, resp.status, text)
-                raise ApiError(resp.status, text, api_url)
-            return _parse_json_or_raise(text, api_url, resp.status, "GET")
-
-
-async def post_json(host: str, path: str, payload: dict, timeout: int):
-    api_url = _build_url(host, path)
-
-    logger.debug(f"POST {api_url}, payload: {payload}")
     async with aiohttp.ClientSession() as session:
         async with session.post(
             api_url,
-            json=payload,
+            json={"QQ": qq, "uuid": bind_uuid},
             headers=_build_headers(),
-            timeout=aiohttp.ClientTimeout(total=timeout),
+            timeout=aiohttp.ClientTimeout(total=10),
         ) as resp:
-            text = await _read_text(resp)
+            raw = await resp.read()
+            try:
+                text = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                text = raw.decode("utf-8", errors="replace")
+
             if resp.status != 200:
-                # 后端/网关的原始页面只进日志；异常里只留状态码 + 短摘要
                 _log_failure("POST", api_url, resp.status, text)
                 raise ApiError(resp.status, text, api_url)
-            return _parse_json_or_raise(text, api_url, resp.status)
 
-
-async def api_info(host: str, api_id: str):
-    return await post_json(
-        host,
-        "/api/astrbot/kahunasystem/api/info",
-        {"args": api_id},
-        timeout=10,
-    )
-
-
-async def api_run(
-    host: str, api_id: str, args: dict, qq: str = None, access_token: str = None
-):
-    return await post_json(
-        host,
-        "/api/astrbot/kahunasystem/api/run",
-        {"api_id": api_id, "args": args, "qq": qq, "access_token": access_token},
-        timeout=300,
-    )
-
-
-async def api_price_detail(host: str, type_name: str, access_token: str = None):
-    return await api_run(
-        host,
-        "market_price_detail",
-        {"type_name": type_name},
-        None,
-        access_token,
-    )
-
-
-async def api_frt_price_detail(host: str, type_name: str, access_token: str = None):
-    return await api_run(
-        host,
-        "market_price_detail",
-        {"type_name": type_name, "market_zone": "frt"},
-        None,
-        access_token,
-    )
-
-
-async def api_type_cost(
-    host: str, type_name: str, user_name: str, plan_name: str, access_token: str = None
-):
-    return await api_run(
-        host,
-        "market_type_cost",
-        {
-            "type_name": type_name,
-            "user_name": user_name,
-            "plan_name": plan_name,
-        },
-        None,
-        access_token,
-    )
-
-
-async def api_qq_bind(host: str, qq, uuid: str):
-    """QQ 号绑定 kahunasystem 账号（走 astrbot 蓝图，需携带服务密钥）。"""
-    api_url = _build_url(host, "/api/astrbot/kahunasystem/qq/bind")
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            api_url,
-            json={"QQ": qq, "uuid": uuid},
-            headers=_build_headers(),
-            timeout=aiohttp.ClientTimeout(total=10),
-        ) as resp:
-            text = await _read_text(resp)
-            data = None
             try:
                 data = json.loads(text)
             except Exception:
-                data = {}
+                _log_failure("POST", api_url, resp.status, text)
+                raise ApiError(
+                    resp.status,
+                    text,
+                    api_url,
+                    summary="后端返回的不是 JSON 数据（疑似网页或网关错误页）",
+                )
+
             if not isinstance(data, dict):
                 data = {}
             data.setdefault("status", resp.status)
             return data
-
-
-async def api_qq_vip_state(host: str, qq):
-    """查询 QQ 号绑定状态（走 astrbot 蓝图，需携带服务密钥）。"""
-    api_url = _build_url(host, "/api/astrbot/kahunasystem/qq/vip")
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            api_url,
-            json={"QQ": qq},
-            headers=_build_headers(),
-            timeout=aiohttp.ClientTimeout(total=10),
-        ) as resp:
-            text = await _read_text(resp)
-            data = None
-            try:
-                data = json.loads(text)
-            except Exception:
-                data = {}
-            if not isinstance(data, dict):
-                data = {}
-            data.setdefault("status", resp.status)
-            return data
-
-
-async def api_zkb_get_character_data(host: str, character_id: int):
-    return await get_json(
-        "https://zkillboard.com/api/stats/characterID",
-        f"/{character_id}/",
-        timeout=10,
-    )
-
-
-async def api_zkb_get_corporation_data(host: str, corporation_id: int):
-    return await get_json(
-        "https://zkillboard.com/api/stats/corporationID",
-        f"/{corporation_id}/",
-        timeout=10,
-    )
-
-
-async def api_esi_name2id(search_str: str):
-    return await post_json(
-        "https://esi.evetech.net",
-        "/latest/universe/ids/",
-        payload=[search_str],
-        timeout=10,
-    )

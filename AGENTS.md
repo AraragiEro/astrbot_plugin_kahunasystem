@@ -18,8 +18,9 @@
 ├── requirements.txt   # Python 依赖
 ├── src/
 │   ├── event.py       # 指令处理逻辑 (.ojita/.frt/.成本/.绑定)
-│   ├── api_client.py  # HTTP 客户端，封装对 kahunabot 的 API 调用
-│   ├── identity.py    # 平台身份(openid) ↔ 真实 QQ 号 映射层
+│   ├── mcp_client.py  # MCP 客户端（SSE + JSON-RPC），查价/成本取数
+│   ├── api_client.py  # HTTP 客户端（仅 QQ 绑定：/api/plugin/qq/bind）
+│   ├── seat_*.py      # SeAT 名单 / 名片同步 / 踢人 / 入群审核
 │   ├── resource/      # 静态资源 (图片素材)
 │   └── picture_render_server/  # 价格/成本图片渲染
 ├── data/              # 数据文件
@@ -36,13 +37,9 @@
 | `.成本 <物品名>` | 查询制造成本明细 (图片渲染) | 公开 (全局锁防并发) |
 | `cost <物品名>` | `.成本` 的英文别名 | 公开 |
 | `.绑定kahunasystem <uuid>` | QQ 绑定 kahunasystem 账号 | 公开 |
-| `/绑定QQ <QQ号>` | 把当前平台身份绑定到你的 QQ 号（QQ 官方机器人必做一次） | 公开 |
-| `/解绑QQ` | 解除当前身份的 QQ 号绑定 | 公开 |
-| `/我的绑定` | 查看当前身份的绑定情况 | 公开 |
-| `/绑定审计 <QQ号>` | 查看某 QQ 号的绑定/解绑审计 | 管理员 |
 
-> 指令前缀由 AstrBot 的 `wake_prefix` 决定（默认 `/`，插件会把正确前缀拼进提示语）；
-> 表中 `.绑定kahunasystem` 沿用历史写法，实际前缀以主人配置为准。
+> 指令前缀由 AstrBot 的 `wake_prefix` 决定（默认 `/`）；表中 `.绑定kahunasystem` 沿用历史写法。
+> openid ↔ QQ 号的映射层已回退移除，业务身份直接用事件发送者 id（OneBot 平台即真实 QQ 号）。
 
 ## 关键开发模式
 
@@ -56,12 +53,14 @@ async def cost(self, event: AstrMessageEvent, require_str: str):
 - 返回值使用 `yield event.plain_result()` 或 `yield event.chain_result()`
 - 图片使用 `Image.fromFileSystem(path)` + `chain_result` 返回
 
-### API 客户端模式
-- 所有外部 API 调用集中在 `src/api_client.py`
-- 使用 aiohttp 异步请求
-- `post_json()` / `get_json()` 为基础封装
-- `api_run()` 为通用 kahunabot 后端调用入口
-- 需先调用 `api_info()` 获取 access_token
+### 数据通道（MCP / HTTP 分工）
+- **读能力走 MCP**：`.ojita` / `.frt` / `.成本` 通过 `src/mcp_client.py` 调用 MCP tools
+  （SSE；`mcp_url` 配置，默认 `http://127.0.0.1:9000/sse`）
+- **写能力走 HTTP**：`.绑定kahunasystem` 通过 `src/api_client.py` 调
+  `POST /api/plugin/qq/bind`（服务密钥认证）
+- `src/mcp_client.py` 用 aiohttp 手写最小 SSE + JSON-RPC，**不要**引入 mcp SDK
+  （核心依赖版本保护会拦截与核心冲突的固定版本依赖）
+- 🔴 `/api/astrbot/*`（api_info 取 token → api_run 转发）已全面日落淘汰，不要再新增调用
 - 🔴 **接口失败不要在群里回细节**：用户可见文案统一走 `src/event.py` 的
   `api_error_for_user()`，只回固定文案「XX 暂时不可用，请稍后再试。」——
   状态码、后端 message、响应体一律不外发。
@@ -104,41 +103,28 @@ async def cost(self, event: AstrMessageEvent, require_str: str):
 - 私聊（C2C）与 aiocqhttp 等平台不做此处理，@ 仍交给 AstrBot 的
   「回复时 @ 用户」设置
 
-### 平台身份与 QQ 号映射（重要）
-- 背景：QQ 官方机器人**只提供 openid**（群 `member_openid` / 单聊 `user_openid`，
-  两者是不同值），平台不提供 QQ 号也没有反查接口；而 kahunabot 后端与既有数据
-  （`user_qq_binding`、资产归属、权限、缓存 key）全部以整数 QQ 号为业务身份
-- 中间层 `src/identity.py`：业务需要 QQ 号时统一走 `resolve_qq(event)` ——
-  纯数字身份（OneBot/aiocqhttp 等）直接返回，openid 查映射表；查不到时调用方用
-  `qq_required_hint(event)` 提示用户绑定，**不要因此阻断不依赖 QQ 号的功能**（查价/出图）
-- 存储：AstrBot 插件 KV（`Star.get_kv_data/put_kv_data`，底层 `AstrBot/data/data_v4.db`）。
-  **不要**把映射写进插件目录的 `data/`，面板更新插件会把它覆盖掉
-- 键结构：`uid2qq:<platform>:<scene>:<uid>`（记录 dict）、`qq2uid:<qq>`（唯一性校验）、
-  `audit:<qq>`（绑定/解绑审计，最多 20 条）
-- 唯一性规则：一个 QQ 号只能属于一个平台身份；一个身份同时只能绑一个号，换号需先解绑
-- ⚠️ 群聊与单聊的 openid 不同 → 两个场景各自登记（私聊里绑定不影响群聊）；
-  若实测发现同一用户在不同群的 `member_openid` 不一致，需要把群 ID 并入
-  `IdentityStore.identity_key`
-- ⚠️ **@ 提及必须继续用 openid**（`event.get_sender_id()`），只有业务身份才用解析出的
-  QQ 号，两者不要混用
-- 仅覆盖插件指令链路；kahunabot 侧的 MCP 工具（`qq_vip_state(qq)` 等）不经过本层，
-  如后续要支持需另行处理
+### 业务身份 = 发送者 id（重要）
+- openid ↔ QQ 号映射层（`src/identity.py` 与 `绑定QQ / 解绑QQ / 我的绑定 / 绑定审计`）
+  已**回退移除**：业务身份直接用 `event.get_sender_id()`，OneBot/aiocqhttp 平台即真实 QQ 号
+- 取号统一走 `src/event.py` 的 `_sender_qq(event)`（非数字身份返回 `None`）：
+  - `.绑定kahunasystem` 拿不到 QQ 号时提示「绑定功能暂时不可用」；
+  - `.成本` 拿不到 QQ 号时省略 `qq` 参数，后端回落到 system 公共作用域
+- **@ 提及继续用 `event.get_sender_id()`**：群场景下是同一个值，不要再造身份层
+- QQ 官方机器人只提供 openid → 绑定不可用；不要再往插件里加映射表（已按需求淘汰）
 - **给 LLM 的取号入口**：`@filter.llm_tool(name="kahunasystem_get_my_qq")`（`main.py`，
-  逻辑在 `Event.get_my_qq_for_llm()`）。模型在调用带 `qq` 参数的 kahunabot MCP 工具**之前**
-  应先调用它拿到当前用户的真实 QQ 号。写工具时注意：
-  - **必须 return str**：AstrBot 中 LLM 工具返回 `None` 表示「结果不进下一轮 prompt」，
-    返回 str 才会给模型看到；返回的内容不会发到群里
+  逻辑在 `Event.get_my_qq_for_llm()`），直接返回发送者 id。模型在调用带 `qq` 参数的
+  MCP 工具**之前**应先调用它。写工具时注意：
+  - **必须 return str**：返回 `None` 表示「结果不进下一轮 prompt」，模型看不到
   - **不要 yield**：工具里 yield 的内容会被当成要给用户发的消息
-  - 工具函数第一个参数是 `self`（AstrBot 用 `functools.partial(handler, 插件实例)` 绑定），
-    第二个是 `event`；参数 schema 由**函数注释**解析，有参数时必须写规范 `Args:` 段
-  - 群聊/私聊 openid 不同，因此本工具只能解析「当前会话的发送者」，
-    无法解析其他人（如把别人的 QQ 号传给它核对）
+  - 工具函数第一个参数是 `self`，第二个是 `event`；参数 schema 由**函数注释**解析
+  - 只能解析「当前会话的发送者」，无法解析其他人
 
 ### 配置要求
 ```ini
-# config.ini 必需字段
-kahunasystem_host = "http://localhost:9527"  # kahunabot 后端地址
-cost_username = "default_user"               # 成本计算默认用户
+# 插件配置（AstrBot 面板 → _conf_schema.json）
+mcp_url = "http://127.0.0.1:9000/sse"        # 查价 / 成本走 MCP
+kahunasystem_host = "http://localhost:9527"  # 仅 QQ 绑定使用
+service_api_key = "<与后端 [SERVICE] API_KEY 一致>"
 cost_plan = "default_plan"                   # 成本计算默认方案
 ```
 
@@ -190,8 +176,9 @@ astrbot_plugin_kahunasystem/
 ├── config.ini           # AstrBot 配置文件
 ├── src/
 │   ├── event.py         # 事件处理器（oprice/frt_price/costdetail/bind）
-│   ├── api_client.py    # kahunabot REST API 封装 (aiohttp)
-│   ├── identity.py      # 平台身份(openid) ↔ 真实 QQ 号 映射层
+│   ├── mcp_client.py    # MCP 客户端（SSE + JSON-RPC）
+│   ├── api_client.py    # HTTP 客户端（仅 QQ 绑定）
+│   ├── seat_*.py        # SeAT 名单 / 名片 / 踢人 / 入群审核
 │   ├── picture_render_server/  # HTML → 图片渲染服务
 │   └── resource/        # 静态资源
 └── data/                # 数据文件
@@ -205,21 +192,18 @@ astrbot_plugin_kahunasystem/
 | `.frt <物品> [数量]` | 查询 FRT 市场价格 | `.frt Ishtar` |
 | `.成本 <物品>` | 查询物品生产成本 | `.成本 Megathron` |
 | `.绑定kahunasystem <uuid>` | 绑定 QQ 号到 Kahuna 账号 | `.绑定kahunasystem abc123` |
-| `/绑定QQ <QQ号>` | 绑定当前平台身份到你的 QQ 号（QQ 官方机器人必做一次） | `/绑定QQ 123456789` |
-| `/解绑QQ` | 解除当前身份的 QQ 号绑定 | `/解绑QQ` |
-| `/我的绑定` | 查看当前身份的绑定情况 | `/我的绑定` |
-| `/绑定审计 [QQ号]` | 查看绑定/解绑审计（仅管理员） | `/绑定审计 123456789` |
 
 # API 集成模式
 
 **调用流程**：
 ```
-QQ 指令 → Event.xxx() → api_info() 获取 access_token → api_xxx() HTTP 调用 → kahunabot 后端
+查价/成本：QQ 指令 → Event.xxx() → mcp_client.call_tool() → MCP 中间层 → 后端
+QQ 绑定：  QQ 指令 → Event.bind_kahunasystem() → api_client.bind_qq() → /api/plugin/qq/bind
 ```
 
-- 所有 API 调用先通过 `api_info()` 获取 JWT access_token
-- API 客户端封装在 `src/api_client.py`，使用 `aiohttp` 异步 HTTP 请求
-- 后端接口路径格式: `/api/astrbot/kahunasystem/<模块>/<操作>`
+- **读能力**（`market_price_detail` / `market_type_cost`）通过 `src/mcp_client.py` 调 MCP tools
+- **写能力**（QQ 绑定）通过 `src/api_client.py` 调 HTTP，服务密钥认证
+- 🔴 `/api/astrbot/*` 已全面日落淘汰，后端不再提供 api_info / api_run
 - 价格/成本结果通过 HTML 渲染为图片返回 QQ
 
 # 关键模式
@@ -244,8 +228,9 @@ except Exception as e:
 - 其他指令无并发限制
 
 # 配置要求
-- `kahunasystem_host`: kahunabot 后端地址（如 `http://localhost:9527`）
-- `cost_username` / `cost_plan`: 成本计算默认用户名和方案名
+- `mcp_url`: MCP 中间层地址（默认 `http://127.0.0.1:9000/sse`），查价/成本走它
+- `kahunasystem_host` + `service_api_key`: 仅 QQ 绑定使用
+- `cost_plan`: 成本计算默认方案名（`cost_username` 已废弃，不再生效）
 - 配置由 AstrBot 管理面板注入到 `AstrBotConfig`
 
 # 计划与任务
@@ -254,6 +239,6 @@ except Exception as e:
 
 # 注意事项
 - 新增指令遵循 `@filter.command` 装饰器模式，参考 `main.py` 中已有指令
-- 新 API 调用统一封装到 `src/api_client.py`
-- 不要绕过 `api_info()` 直接调用后端 API（需要 JWT token）
+- 读数据统一走 `src/mcp_client.py` 的 MCP tools，**不要**把后端 HTTP 调用塞回插件
+- 写操作（QQ 绑定）走 `src/api_client.py` 的 `/api/plugin/qq/bind`
 - 图片渲染失败时降级为纯文本提示，不阻塞响应
