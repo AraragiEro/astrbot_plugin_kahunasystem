@@ -14,6 +14,7 @@ from .src.seat_roster import refresh_roster
 from .src.seat_rename import configured_group_ids, sync_all_groups
 from .src.seat_kick import configured_kick_group_ids, kick_all_groups
 from .src.seat_config import get as seat_cfg
+from .src.seat_join import handle_group_request
 
 
 @register(
@@ -263,6 +264,14 @@ class MyPlugin(Star):
             f"管理员跳过 {totals['skipped_role']}，白名单跳过 {totals['skipped_whitelist']}，"
             f"因限额跳过 {totals['limited']}。"
         )
+
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def on_group_request(self, event: AstrMessageEvent):
+        """入群申请自动审核（仅 OneBot 群请求，见 src/seat_join.py）。"""
+        raw = getattr(getattr(event, "message_obj", None), "raw_message", None)
+        if raw is None:
+            return
+        await handle_group_request(self, raw)
 
     async def seat_validate(self):
         """可视化视图「验证并保存」的后端入口（见 views/seat-auth/）。"""

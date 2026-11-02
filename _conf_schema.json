@@ -144,5 +144,29 @@
         "hint": "每行一个 QQ 号；列出的 QQ 即使不在 SeAT 名单里也不会被踢"
       }
     }
+  },
+  "seat_join": {
+    "description": "入群审核",
+    "type": "object",
+    "items": {
+      "enabled": {
+        "description": "启用入群自动审核",
+        "type": "bool",
+        "default": true,
+        "hint": "收到入群申请时检查 QQ 是否在 SeAT 名单里：在则通过，不在则拒绝"
+      },
+      "debug": {
+        "description": "调试模式（只记录不处理）",
+        "type": "bool",
+        "default": false,
+        "hint": "开启后只打印判定结果，不实际通过或拒绝"
+      },
+      "group_ids": {
+        "description": "群号白名单",
+        "type": "list",
+        "default": [],
+        "hint": "只审核列表里的群，例如 [\"577166101\"]；留空则不审核"
+      }
+    }
   }
 }
