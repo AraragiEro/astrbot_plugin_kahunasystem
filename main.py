@@ -7,6 +7,7 @@ from .src.event import Event, set_command_prefix
 from .src.api_client import set_service_api_key
 from .src.identity import IdentityStore, set_identity_store
 from .src.picture_render_server.picture_render import set_t2i_renderer
+from .src.seat_auth import PLUGIN_NAME as SEAT_PLUGIN_NAME, handle_validate_request
 
 
 @register(
@@ -58,6 +59,16 @@ class MyPlugin(Star):
         else:
             command_prefix = str(wake_prefix)
         set_command_prefix(command_prefix)
+
+        # 可视化视图（views/seat-auth/）的后端接口：校验并保存 SeAT 登录态。
+        # 浏览器页面无法读取 seat.winterco.org 的 httpOnly Cookie，因此由用户
+        # 手动粘贴、插件后端代为请求一次校验后再落库。
+        context.register_web_api(
+            f"/{SEAT_PLUGIN_NAME}/seat/validate",
+            self.seat_validate,
+            ["POST"],
+            "校验并保存 SeAT 登录态",
+        )
 
     async def initialize(self):
         """可选的异步初始化方法。"""
@@ -130,6 +141,10 @@ class MyPlugin(Star):
     @filter.command("ssid")
     async def ssid(self, event: AstrMessageEvent):
         yield event.plain_result(f"你的 session id 是: {event.get_session_id()}")
+
+    async def seat_validate(self):
+        """可视化视图「验证并保存」的后端入口（见 views/seat-auth/）。"""
+        return await handle_validate_request(self)
 
     async def terminate(self):
         """可选的异步销毁方法。"""

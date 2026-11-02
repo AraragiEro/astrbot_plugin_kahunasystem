@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SeAT 授权</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --fg: #1f2328;
+        --muted: #6b7280;
+        --line: #d0d7de;
+        --panel: #f6f8fa;
+        --accent: #2b6cb0;
+        --ok: #2f855a;
+        --warn: #b7791f;
+        --err: #c53030;
+      }
+      html[data-theme="dark"] {
+        --bg: #16181d;
+        --fg: #e6e8eb;
+        --muted: #9aa4b2;
+        --line: #30363d;
+        --panel: #1e2228;
+        --accent: #5aa3e8;
+        --ok: #68d391;
+        --warn: #f6c05c;
+        --err: #fc8181;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 20px;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+      .wrap { max-width: 760px; margin: 0 auto; }
+      h1 { font-size: 18px; margin: 0 0 8px; }
+      .hint { color: var(--muted); margin: 0 0 14px; }
+      textarea {
+        width: 100%;
+        min-height: 128px;
+        resize: vertical;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        color: var(--fg);
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: 13px;
+      }
+      textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 12px;
+        flex-wrap: wrap;
+      }
+      button {
+        padding: 8px 18px;
+        border: none;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #fff;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      button:disabled { opacity: 0.6; cursor: not-allowed; }
+      .status { font-size: 13px; color: var(--muted); }
+      .status.ok { color: var(--ok); }
+      .status.expired,
+      .status.error { color: var(--err); }
+      .status.blocked { color: var(--warn); }
+      details {
+        margin-top: 22px;
+        padding: 12px 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+      summary { cursor: pointer; color: var(--fg); }
+      details ol { margin: 10px 0 0; padding-left: 20px; color: var(--muted); }
+      code {
+        padding: 1px 4px;
+        border-radius: 4px;
+        background: rgba(127, 127, 127, 0.16);
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <h1>SeAT 登录态</h1>
+      <p class="hint">
+        在浏览器登录 <code>seat.winterco.org</code> 后，把
+        <code>seat_session</code> 与 <code>remember_web_*</code> 拼成
+        <code>name=value; name2=value2</code> 粘贴到下面，点「验证并保存」。
+      </p>
+
+      <textarea
+        id="cookie"
+        spellcheck="false"
+        placeholder="seat_session=...; remember_web_...=..."
+      ></textarea>
+
+      <div class="actions">
+        <button id="btn" type="button">验证并保存</button>
+        <span id="status" class="status">未验证</span>
+      </div>
+
+      <details>
+        <summary>怎么取 Cookie？</summary>
+        <ol>
+          <li>浏览器登录 SeAT（EVE SSO），进入 PAP 页面。</li>
+          <li>按 F12 打开开发者工具，切到 Application（应用）→ Cookies → 站点域名。</li>
+          <li>复制 <code>seat_session</code> 和以 <code>remember_web_</code> 开头的条目。</li>
+          <li>按 <code>名字=值; 名字=值</code> 的格式粘贴到上面，点验证。</li>
+        </ol>
+      </details>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
