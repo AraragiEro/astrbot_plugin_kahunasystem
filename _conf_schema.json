@@ -72,5 +72,35 @@
     "type": "bool",
     "default": false,
     "hint": "开启「自动同步群名片」后，若同时开启此开关，只打印日志与预计改名，不实际修改群名片"
+  },
+  "seat_kick_enabled": {
+    "description": "自动清理不在名单里的成员",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后，白名单群中不在 SeAT 名单里的成员会被自动踢出；建议先用调试模式确认清单"
+  },
+  "seat_kick_debug": {
+    "description": "踢人调试模式（只记录不踢）",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后只打印预计踢出的成员，不实际执行"
+  },
+  "seat_kick_group_ids": {
+    "description": "踢人白名单（群号列表）",
+    "type": "list",
+    "default": [],
+    "hint": "只对列表里的群执行清理，例如 [\"577166101\"]；留空则不同步"
+  },
+  "seat_kick_limit": {
+    "description": "单轮最多踢几个",
+    "type": "int",
+    "default": 20,
+    "hint": "踢人间隔 8~15 秒，超出的下一轮继续"
+  },
+  "seat_kick_qq_whitelist": {
+    "description": "踢人 QQ 白名单",
+    "type": "list",
+    "default": [],
+    "hint": "列出的 QQ 即使不在 SeAT 名单里也不会被踢，例如 [\"123456789\"]"
   }
 }

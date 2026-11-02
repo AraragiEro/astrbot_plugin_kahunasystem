@@ -12,6 +12,7 @@ from .src.picture_render_server.picture_render import set_t2i_renderer
 from .src.seat_auth import PLUGIN_NAME as SEAT_PLUGIN_NAME, handle_validate_request
 from .src.seat_roster import refresh_roster
 from .src.seat_rename import configured_group_ids, sync_all_groups
+from .src.seat_kick import configured_kick_group_ids, kick_all_groups
 
 
 @register(
@@ -83,9 +84,10 @@ class MyPlugin(Star):
         while True:
             try:
                 await refresh_roster(self)
-                enabled = bool(self.config.get("seat_rename_enabled", True))
-                if enabled and configured_group_ids(self):
+                if bool(self.config.get("seat_rename_enabled", True)) and configured_group_ids(self):
                     await sync_all_groups(self)
+                if bool(self.config.get("seat_kick_enabled", True)) and configured_kick_group_ids(self):
+                    await kick_all_groups(self)
             except Exception as exc:
                 logger.warning(f"SeAT 名单/名片同步失败：{exc}")
             await asyncio.sleep(3600)
@@ -191,6 +193,37 @@ class MyPlugin(Star):
             f"群名片同步完成{prefix}（{len(results)} 个群）：检查 {totals['checked']} 人，"
             f"已符合 {totals['matched']}，改名 {totals['changed']}，"
             f"预计改名 {totals['planned']}，失败 {totals['failed']}，"
+            f"因限额跳过 {totals['limited']}。"
+        )
+
+    @filter.command("seat踢人", alias={"清理成员", "seatkick"})
+    async def seat_kick(self, event: AstrMessageEvent):
+        """立即清理不在名单里的群成员。"""
+        try:
+            results = await kick_all_groups(self)
+        except Exception as exc:
+            yield event.plain_result(f"清理失败：{exc}")
+            return
+        totals = {
+            key: sum(item.get(key, 0) for item in results)
+            for key in (
+                "total",
+                "kept",
+                "kicked",
+                "planned",
+                "failed",
+                "skipped_role",
+                "skipped_whitelist",
+                "limited",
+            )
+        }
+        debug_mode = any(item.get("debug") for item in results)
+        prefix = "（调试模式，未实际踢人）" if debug_mode else ""
+        yield event.plain_result(
+            f"群成员清理完成{prefix}（{len(results)} 个群）：群内 {totals['total']} 人，"
+            f"保留 {totals['kept']}，踢出 {totals['kicked']}，"
+            f"预计踢出 {totals['planned']}，失败 {totals['failed']}，"
+            f"管理员跳过 {totals['skipped_role']}，白名单跳过 {totals['skipped_whitelist']}，"
             f"因限额跳过 {totals['limited']}。"
         )
 

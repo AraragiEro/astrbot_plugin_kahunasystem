@@ -52,7 +52,7 @@ def _cfg(plugin, key: str, default):
     return default if value is None else value
 
 
-def _find_bot(plugin):
+def find_aiocqhttp_bot(plugin):
     """找到 aiocqhttp 平台实例对应的 CqHttp 客户端。"""
     manager = getattr(plugin.context, "platform_manager", None)
     if manager is None:
@@ -100,7 +100,7 @@ async def sync_group_cards(
     if not roster or not roster.get("items"):
         raise RuntimeError("还没有成员名单，请先刷新一次")
 
-    bot = _find_bot(plugin)
+    bot = find_aiocqhttp_bot(plugin)
     if bot is None:
         raise RuntimeError("没有可用的 aiocqhttp 平台实例，无法修改群名片")
 
@@ -114,11 +114,14 @@ async def sync_group_cards(
     except Exception as exc:
         raise RuntimeError(f"获取群成员失败：{exc}")
 
-    member_cards: dict[str, str] = {}
+    member_map: dict[str, dict] = {}
     for member in members or []:
         uid = str(member.get("user_id") or "").strip()
         if uid:
-            member_cards[uid] = str(member.get("card") or "")
+            member_map[uid] = {
+                "card": str(member.get("card") or ""),
+                "role": str(member.get("role") or ""),
+            }
 
     stats = {
         "group_id": group_id,
@@ -129,6 +132,7 @@ async def sync_group_cards(
         "planned": 0,
         "failed": 0,
         "skipped": 0,
+        "skipped_role": 0,
         "limited": 0,
         "changes": [],
         "checked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -136,12 +140,18 @@ async def sync_group_cards(
 
     for item in roster["items"]:
         qq = str(item.get("qq_id") or "").strip()
-        if not qq or qq not in member_cards:
+        if not qq or qq not in member_map:
             stats["skipped"] += 1
             continue
 
+        info = member_map[qq]
+        # 管理员与群主不动：避免影响管理权限，也避免逆反操作
+        if info["role"] in ("owner", "admin"):
+            stats["skipped_role"] += 1
+            continue
+
         expected = build_expected_card(item.get("nickname", ""), item.get("character", ""))
-        current = member_cards[qq]
+        current = info["card"]
         stats["checked"] += 1
 
         if current == expected:
@@ -186,13 +196,14 @@ async def sync_group_cards(
 
     await plugin.put_kv_data(RENAME_RESULT_KEY, stats)
     logger.info(
-        "SeAT 群名片同步%s：检查 %d，已符合 %d，改名 %d，预计改名 %d，失败 %d，超限跳过 %d",
+        "SeAT 群名片同步%s：检查 %d，已符合 %d，改名 %d，预计改名 %d，失败 %d，管理员跳过 %d，超限跳过 %d",
         "（调试模式）" if debug else "",
         stats["checked"],
         stats["matched"],
         stats["changed"],
         stats["planned"],
         stats["failed"],
+        stats["skipped_role"],
         stats["limited"],
     )
     return stats
