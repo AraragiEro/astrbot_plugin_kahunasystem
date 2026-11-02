@@ -200,6 +200,8 @@ async def resolve_main_characters(
 ) -> dict[str, dict]:
     """返回 {公司角色名: {id, main_id, main_name, corp_id, ticker}}，带 24 小时缓存。"""
     names = [str(name).strip() for name in (names or []) if str(name).strip()]
+    # ESI 要求请求里的名字唯一，否则整批返回 400
+    names = list(dict.fromkeys(names))
     if not names:
         return {}
 

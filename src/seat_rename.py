@@ -125,8 +125,7 @@ async def sync_group_cards(
                 "role": str(member.get("role") or ""),
             }
 
-    # 主角色公司缩写：按角色名查 ESI，缓存 24 小时；失败时回退默认值
-    default_ticker = str(_cfg(plugin, "seat_rename_default_ticker", "SETCR") or "SETCR")
+    # 主角色信息：按角色名查 ESI/SeAT，缓存 24 小时
     names = [
         str(item.get("character") or "").strip()
         for item in roster["items"]
@@ -135,7 +134,7 @@ async def sync_group_cards(
     try:
         character_map = await resolve_main_characters(plugin, names)
     except Exception as exc:
-        logger.warning(f"读取主角色信息失败，回退公司角色：{exc}")
+        logger.warning(f"读取主角色信息失败：{exc}")
         character_map = {}
 
     stats = {
@@ -148,6 +147,7 @@ async def sync_group_cards(
         "failed": 0,
         "skipped": 0,
         "skipped_role": 0,
+        "skipped_unknown": 0,
         "limited": 0,
         "changes": [],
         "checked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -167,9 +167,13 @@ async def sync_group_cards(
 
         character = str(item.get("character") or "").strip()
         meta = character_map.get(character) or {}
-        # 主角色名优先生效；解析不到时回退为「我们公司的这个角色」
-        main_name = str(meta.get("main_name") or character)
-        ticker = str(meta.get("ticker") or default_ticker)
+        main_name = str(meta.get("main_name") or "").strip()
+        ticker = str(meta.get("ticker") or "").strip()
+        # 主角色信息缺失时绝不臆测：回退值会把本来正确的名片改坏
+        if not main_name or not ticker:
+            stats["skipped_unknown"] += 1
+            continue
+
         expected = build_expected_card(item.get("nickname", ""), main_name, ticker)
         current = info["card"]
         stats["checked"] += 1
@@ -216,7 +220,7 @@ async def sync_group_cards(
 
     await plugin.put_kv_data(RENAME_RESULT_KEY, stats)
     logger.info(
-        "SeAT 群名片同步%s：检查 %d，已符合 %d，改名 %d，预计改名 %d，失败 %d，管理员跳过 %d，超限跳过 %d",
+        "SeAT 群名片同步%s：检查 %d，已符合 %d，改名 %d，预计改名 %d，失败 %d，管理员跳过 %d，主角色未解析跳过 %d，超限跳过 %d",
         "（调试模式）" if debug else "",
         stats["checked"],
         stats["matched"],
@@ -224,6 +228,7 @@ async def sync_group_cards(
         stats["planned"],
         stats["failed"],
         stats["skipped_role"],
+        stats["skipped_unknown"],
         stats["limited"],
     )
     return stats

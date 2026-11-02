@@ -71,8 +71,8 @@ def _normalize(items) -> list[dict]:
             qq = ""
         result.append(
             {
-                "character": _decode_text(item.get("character")),
-                "nickname": _decode_text(item.get("nickname")),
+                "character": _decode_text(item.get("character")).strip(),
+                "nickname": _decode_text(item.get("nickname")).strip(),
                 "qq_id": qq,
             }
         )
