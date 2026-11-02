@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import random
 from datetime import datetime
 
@@ -173,6 +174,25 @@ async def kick_outside_roster(plugin, roster: dict | None = None, group_id: str 
         await asyncio.sleep(random.uniform(KICK_DELAY_MIN, KICK_DELAY_MAX))
 
     await plugin.put_kv_data(KICK_RESULT_KEY, stats)
+
+    if debug:
+        # 预计踢出的名单：先给可直接粘贴的 QQ 数组，再给 QQ -> 名字 的对照
+        removed = stats["removed"]
+        logger.info(
+            "SeAT 调试：预计踢出 QQ 列表（可直接粘贴到 seat_kick_qq_whitelist）：%s",
+            json.dumps([item.get("qq", "") for item in removed], ensure_ascii=False),
+        )
+        logger.info(
+            "SeAT 调试：预计踢出 QQ -> 名字：%s",
+            json.dumps(
+                {
+                    item.get("qq", ""): item.get("nickname", "")
+                    for item in removed
+                },
+                ensure_ascii=False,
+            ),
+        )
+
     logger.info(
         "SeAT 清理群成员%s：群内 %d 人，保留 %d，踢出 %d，预计踢出 %d，失败 %d，管理员跳过 %d，白名单跳过 %d，超限跳过 %d",
         "（调试模式）" if debug else "",

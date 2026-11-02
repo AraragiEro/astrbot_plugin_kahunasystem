@@ -18,6 +18,7 @@ from datetime import datetime
 
 from astrbot.api import logger
 
+from .seat_esi import resolve_tickers
 from .seat_roster import load_roster
 
 # 最近一次同步结果（KV）
@@ -34,11 +35,12 @@ RENAME_DELAY_MAX = 9.0
 DEFAULT_MAX_CHANGES = 20
 
 
-def build_expected_card(nickname: str, character: str) -> str:
-    """生成期望的群名片：SETCR-昵称/角色名。"""
+def build_expected_card(nickname: str, character: str, ticker: str = "") -> str:
+    """生成期望的群名片：{主角色公司缩写}-昵称/主角色名。"""
     nick = (nickname or "").strip() or PLACEHOLDER_NICK
     character = (character or "").strip()
-    return f"SETCR-{nick}/{character}"
+    prefix = (ticker or "").strip() or "SETCR"
+    return f"{prefix}-{nick}/{character}"
 
 
 def _cfg(plugin, key: str, default):
@@ -123,6 +125,19 @@ async def sync_group_cards(
                 "role": str(member.get("role") or ""),
             }
 
+    # 主角色公司缩写：按角色名查 ESI，缓存 24 小时；失败时回退默认值
+    default_ticker = str(_cfg(plugin, "seat_rename_default_ticker", "SETCR") or "SETCR")
+    names = [
+        str(item.get("character") or "").strip()
+        for item in roster["items"]
+        if str(item.get("character") or "").strip()
+    ]
+    try:
+        ticker_map = await resolve_tickers(plugin, names)
+    except Exception as exc:
+        logger.warning(f"获取主角色公司缩写失败，回退默认值：{exc}")
+        ticker_map = {}
+
     stats = {
         "group_id": group_id,
         "debug": debug,
@@ -150,7 +165,11 @@ async def sync_group_cards(
             stats["skipped_role"] += 1
             continue
 
-        expected = build_expected_card(item.get("nickname", ""), item.get("character", ""))
+        character = str(item.get("character") or "").strip()
+        ticker = str(
+            (ticker_map.get(character) or {}).get("ticker") or default_ticker
+        )
+        expected = build_expected_card(item.get("nickname", ""), character, ticker)
         current = info["card"]
         stats["checked"] += 1
 

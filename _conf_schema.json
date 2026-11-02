@@ -67,6 +67,12 @@
     "default": 20,
     "hint": "防止一次改太多触发腾讯风控，超出的下一轮继续"
   },
+  "seat_rename_default_ticker": {
+    "description": "公司缩写默认值",
+    "type": "string",
+    "default": "SETCR",
+    "hint": "ESI 查不到主角色公司时使用；群名片格式为 {公司缩写}-{昵称}/{主角色名}"
+  },
   "seat_rename_debug": {
     "description": "调试模式（只记录不改名）",
     "type": "bool",
