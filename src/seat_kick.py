@@ -18,6 +18,7 @@ from datetime import datetime
 
 from astrbot.api import logger
 
+from .seat_config import get as get_cfg
 from .seat_rename import find_aiocqhttp_bot
 from .seat_roster import load_roster
 
@@ -36,19 +37,12 @@ PROTECTED_ROLES = ("owner", "admin")
 
 
 def _cfg(plugin, key: str, default):
-    config = getattr(plugin, "config", None)
-    if config is None:
-        return default
-    try:
-        value = config.get(key)
-    except Exception:
-        return default
-    return default if value is None else value
+    return get_cfg(plugin, "seat_kick", key, default)
 
 
 def configured_kick_group_ids(plugin) -> list[str]:
     """读取踢人白名单（兼容 list 与逗号分隔字符串）。"""
-    raw = _cfg(plugin, "seat_kick_group_ids", [])
+    raw = _cfg(plugin, "group_ids", [])
     if isinstance(raw, str):
         return [part.strip() for part in raw.split(",") if part.strip()]
     if isinstance(raw, (list, tuple)):
@@ -61,7 +55,7 @@ def configured_qq_whitelist(plugin) -> set[str]:
 
     配置是多行文本（一行一个 QQ），也兼容逗号/空格分隔和旧的 list 形式。
     """
-    raw = _cfg(plugin, "seat_kick_qq_whitelist", "")
+    raw = _cfg(plugin, "qq_whitelist", "")
     if isinstance(raw, str):
         parts = re.split(r"[\s,，]+", raw)
     elif isinstance(raw, (list, tuple)):
@@ -77,9 +71,9 @@ async def kick_outside_roster(plugin, roster: dict | None = None, group_id: str 
     if not group_id:
         raise RuntimeError("没有指定要清理的群号")
 
-    debug = bool(_cfg(plugin, "seat_kick_debug", False))
+    debug = bool(_cfg(plugin, "debug", False))
     try:
-        max_kicks = int(_cfg(plugin, "seat_kick_limit", DEFAULT_MAX_KICKS))
+        max_kicks = int(_cfg(plugin, "limit", DEFAULT_MAX_KICKS))
     except (TypeError, ValueError):
         max_kicks = DEFAULT_MAX_KICKS
 

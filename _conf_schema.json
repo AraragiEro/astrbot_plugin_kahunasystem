@@ -37,70 +37,112 @@
     "default": [],
     "hint": "列表内的会话标识不做 VIP 判断，可用 /ssid 指令查看当前会话标识"
   },
-  "seat_base_url": {
-    "description": "SeAT 站点地址",
-    "type": "string",
-    "default": "https://seat.winterco.org",
-    "hint": "联盟 SeAT 根地址，用于校验登录态与后续抓取，一般不需要改"
+  "seat": {
+    "description": "SeAT 认证",
+    "type": "object",
+    "items": {
+      "base_url": {
+        "description": "站点地址",
+        "type": "string",
+        "default": "https://seat.winterco.org",
+        "hint": "联盟 SeAT 根地址，一般不需要改"
+      },
+      "paptracking_path": {
+        "description": "paptracking 页面路径",
+        "type": "string",
+        "default": "/tools/paptracking",
+        "hint": "校验登录态与抓取成员名单时请求的路径"
+      }
+    }
   },
-  "seat_paptracking_path": {
-    "description": "paptracking 页面路径",
-    "type": "string",
-    "default": "/tools/paptracking",
-    "hint": "校验 Cookie 时请求的页面路径；后续抓取也会复用"
+  "seat_roster": {
+    "description": "成员名单",
+    "type": "object",
+    "items": {
+      "refresh_interval_minutes": {
+        "description": "刷新周期（分钟）",
+        "type": "int",
+        "default": 60,
+        "hint": "从 SeAT 拉取成员 QQ 名单的间隔，最小 5 分钟"
+      }
+    }
   },
-  "seat_rename_enabled": {
-    "description": "自动同步群名片",
-    "type": "bool",
-    "default": true,
-    "hint": "每小时刷新名单后，把群名片改成 SETCR-昵称/角色名；需要 aiocqhttp/NapCat 且 bot 是群管理员"
+  "seat_rename": {
+    "description": "群名片同步",
+    "type": "object",
+    "items": {
+      "enabled": {
+        "description": "启用自动同步",
+        "type": "bool",
+        "default": true,
+        "hint": "把群名片改成 {主角色公司缩写}-{昵称}/{主角色名}；需要 aiocqhttp/NapCat 且 bot 是群管理员"
+      },
+      "debug": {
+        "description": "调试模式（只记录不改名）",
+        "type": "bool",
+        "default": false,
+        "hint": "开启后只打印日志与预计改名，不实际修改群名片"
+      },
+      "interval_minutes": {
+        "description": "执行周期（分钟）",
+        "type": "int",
+        "default": 60,
+        "hint": "两次名片同步之间的间隔，最小 5 分钟"
+      },
+      "group_ids": {
+        "description": "群号白名单",
+        "type": "list",
+        "default": [],
+        "hint": "只对列表里的群同步，例如 [\"577166101\"]；留空则不同步"
+      },
+      "limit": {
+        "description": "单轮最多改几个",
+        "type": "int",
+        "default": 20,
+        "hint": "防止一次改太多触发腾讯风控，超出的下一轮继续"
+      }
+    }
   },
-  "seat_rename_group_ids": {
-    "description": "群名片白名单（群号列表）",
-    "type": "list",
-    "default": [],
-    "hint": "只对列表里的群同步名片，例如 [\"577166101\"]；留空则不同步"
-  },
-  "seat_rename_limit": {
-    "description": "单轮最多改几个",
-    "type": "int",
-    "default": 20,
-    "hint": "防止一次改太多触发腾讯风控，超出的下一轮继续"
-  },
-  "seat_rename_debug": {
-    "description": "调试模式（只记录不改名）",
-    "type": "bool",
-    "default": false,
-    "hint": "开启「自动同步群名片」后，若同时开启此开关，只打印日志与预计改名，不实际修改群名片"
-  },
-  "seat_kick_enabled": {
-    "description": "自动清理不在名单里的成员",
-    "type": "bool",
-    "default": true,
-    "hint": "开启后，白名单群中不在 SeAT 名单里的成员会被自动踢出；建议先用调试模式确认清单"
-  },
-  "seat_kick_debug": {
-    "description": "踢人调试模式（只记录不踢）",
-    "type": "bool",
-    "default": false,
-    "hint": "开启后只打印预计踢出的成员，不实际执行"
-  },
-  "seat_kick_group_ids": {
-    "description": "踢人白名单（群号列表）",
-    "type": "list",
-    "default": [],
-    "hint": "只对列表里的群执行清理，例如 [\"577166101\"]；留空则不同步"
-  },
-  "seat_kick_limit": {
-    "description": "单轮最多踢几个",
-    "type": "int",
-    "default": 20,
-    "hint": "踢人间隔 8~15 秒，超出的下一轮继续"
-  },
-  "seat_kick_qq_whitelist": {
-    "description": "踢人 QQ 白名单（一行一个）",
-    "type": "text",
-    "default": "",
-    "hint": "每行一个 QQ 号；列出的 QQ 即使不在 SeAT 名单里也不会被踢"
+  "seat_kick": {
+    "description": "成员清理（踢人）",
+    "type": "object",
+    "items": {
+      "enabled": {
+        "description": "启用自动清理",
+        "type": "bool",
+        "default": true,
+        "hint": "白名单群中不在 SeAT 名单里的成员会被自动踢出；建议先用调试模式确认清单"
+      },
+      "debug": {
+        "description": "调试模式（只记录不踢）",
+        "type": "bool",
+        "default": false,
+        "hint": "开启后只打印预计踢出的成员，不实际执行"
+      },
+      "interval_minutes": {
+        "description": "执行周期（分钟）",
+        "type": "int",
+        "default": 60,
+        "hint": "两次成员清理之间的间隔，最小 5 分钟"
+      },
+      "group_ids": {
+        "description": "群号白名单",
+        "type": "list",
+        "default": [],
+        "hint": "只对列表里的群执行清理，例如 [\"577166101\"]；留空则不同步"
+      },
+      "limit": {
+        "description": "单轮最多踢几个",
+        "type": "int",
+        "default": 20,
+        "hint": "踢人间隔 8~15 秒，超出的下一轮继续"
+      },
+      "qq_whitelist": {
+        "description": "QQ 白名单（一行一个）",
+        "type": "text",
+        "default": "",
+        "hint": "每行一个 QQ 号；列出的 QQ 即使不在 SeAT 名单里也不会被踢"
+      }
+    }
   }
 }

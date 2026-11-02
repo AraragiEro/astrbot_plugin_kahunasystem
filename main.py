@@ -13,6 +13,7 @@ from .src.seat_auth import PLUGIN_NAME as SEAT_PLUGIN_NAME, handle_validate_requ
 from .src.seat_roster import refresh_roster
 from .src.seat_rename import configured_group_ids, sync_all_groups
 from .src.seat_kick import configured_kick_group_ids, kick_all_groups
+from .src.seat_config import get as seat_cfg
 
 
 @register(
@@ -76,21 +77,57 @@ class MyPlugin(Star):
         )
 
     async def initialize(self):
-        """插件加载后启动 SeAT 名单的每小时刷新任务。"""
-        self._seat_task = asyncio.create_task(self._seat_roster_loop())
+        """插件加载后启动 SeAT 的三个后台任务：名单刷新、名片同步、成员清理。"""
+        self._seat_tasks = [
+            asyncio.create_task(self._seat_refresh_loop()),
+            asyncio.create_task(self._seat_rename_loop()),
+            asyncio.create_task(self._seat_kick_loop()),
+        ]
 
-    async def _seat_roster_loop(self):
-        """每小时刷新一次公司成员 QQ 名单，并按需同步群名片。"""
+    def _interval_seconds(
+        self, group: str, key: str = "interval_minutes", default: int = 60
+    ) -> int:
+        """读取周期（分钟）并换算成秒，最小 5 分钟，防止误配成 0。"""
+        try:
+            minutes = int(seat_cfg(self, group, key, default))
+        except (TypeError, ValueError):
+            minutes = default
+        return max(5, minutes) * 60
+
+    async def _seat_refresh_loop(self):
+        """按周期刷新公司成员 QQ 名单。"""
         while True:
             try:
                 await refresh_roster(self)
-                if bool(self.config.get("seat_rename_enabled", True)) and configured_group_ids(self):
+            except Exception as exc:
+                logger.warning(f"SeAT 名单刷新失败：{exc}")
+            await asyncio.sleep(
+                self._interval_seconds("seat_roster", "refresh_interval_minutes")
+            )
+
+    async def _seat_rename_loop(self):
+        """按周期同步群名片；首次延迟一会儿，等名单先刷出来。"""
+        await asyncio.sleep(30)
+        while True:
+            try:
+                enabled = bool(seat_cfg(self, "seat_rename", "enabled", True))
+                if enabled and configured_group_ids(self):
                     await sync_all_groups(self)
-                if bool(self.config.get("seat_kick_enabled", True)) and configured_kick_group_ids(self):
+            except Exception as exc:
+                logger.warning(f"SeAT 名片同步失败：{exc}")
+            await asyncio.sleep(self._interval_seconds("seat_rename"))
+
+    async def _seat_kick_loop(self):
+        """按周期清理不在名单里的群成员；首次稍晚启动。"""
+        await asyncio.sleep(60)
+        while True:
+            try:
+                enabled = bool(seat_cfg(self, "seat_kick", "enabled", True))
+                if enabled and configured_kick_group_ids(self):
                     await kick_all_groups(self)
             except Exception as exc:
-                logger.warning(f"SeAT 名单/名片同步失败：{exc}")
-            await asyncio.sleep(3600)
+                logger.warning(f"SeAT 成员清理失败：{exc}")
+            await asyncio.sleep(self._interval_seconds("seat_kick"))
 
     @filter.command("helloworld")
     async def helloworld(self, event: AstrMessageEvent):
@@ -232,7 +269,7 @@ class MyPlugin(Star):
         return await handle_validate_request(self)
 
     async def terminate(self):
-        """卸载插件时取消后台刷新任务。"""
-        task = getattr(self, "_seat_task", None)
-        if task is not None and not task.done():
-            task.cancel()
+        """卸载插件时取消全部后台任务。"""
+        for task in getattr(self, "_seat_tasks", []) or []:
+            if task is not None and not task.done():
+                task.cancel()

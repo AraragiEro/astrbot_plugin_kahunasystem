@@ -30,6 +30,8 @@ import aiohttp
 from astrbot.api import logger
 from astrbot.api.web import json_response, request
 
+from .seat_config import get as get_cfg
+
 # 与 @register 装饰器中的插件名保持一致（register_web_api 的路由前缀）
 PLUGIN_NAME = "astrbot_plugin_kahunasystem"
 
@@ -237,14 +239,8 @@ async def probe(cookies: dict[str, str], url: str) -> dict:
 
 
 def _cfg(plugin, key: str, default: str) -> str:
-    """读取插件配置项，缺失或为空时回退默认值。"""
-    config = getattr(plugin, "config", None)
-    if config is None:
-        return default
-    try:
-        value = config.get(key)
-    except Exception:
-        return default
+    """读取插件配置项，缺失或为空时回退默认值（兼容旧平铺键）。"""
+    value = get_cfg(plugin, "seat", key, default)
     if value is None:
         return default
     text = str(value).strip()
@@ -267,8 +263,8 @@ async def handle_validate_request(plugin):
             }
         )
 
-    base_url = _cfg(plugin, "seat_base_url", DEFAULT_BASE_URL)
-    target_path = _cfg(plugin, "seat_paptracking_path", DEFAULT_TARGET_PATH)
+    base_url = _cfg(plugin, "base_url", DEFAULT_BASE_URL)
+    target_path = _cfg(plugin, "paptracking_path", DEFAULT_TARGET_PATH)
     url = f"{base_url.rstrip('/')}/{target_path.lstrip('/')}"
 
     result = await probe(cookies, url)

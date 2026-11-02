@@ -18,6 +18,7 @@ from datetime import datetime
 
 from astrbot.api import logger
 
+from .seat_config import get as get_cfg
 from .seat_esi import resolve_main_characters
 from .seat_roster import load_roster
 
@@ -44,14 +45,7 @@ def build_expected_card(nickname: str, character: str, ticker: str = "") -> str:
 
 
 def _cfg(plugin, key: str, default):
-    config = getattr(plugin, "config", None)
-    if config is None:
-        return default
-    try:
-        value = config.get(key)
-    except Exception:
-        return default
-    return default if value is None else value
+    return get_cfg(plugin, "seat_rename", key, default)
 
 
 def find_aiocqhttp_bot(plugin):
@@ -76,7 +70,7 @@ def find_aiocqhttp_bot(plugin):
 
 def configured_group_ids(plugin) -> list[str]:
     """读取群名片白名单（兼容 list 与逗号分隔字符串两种写法）。"""
-    raw = _cfg(plugin, "seat_rename_group_ids", [])
+    raw = _cfg(plugin, "group_ids", [])
     if isinstance(raw, str):
         return [part.strip() for part in raw.split(",") if part.strip()]
     if isinstance(raw, (list, tuple)):
@@ -93,7 +87,7 @@ async def sync_group_cards(
         raise RuntimeError("没有指定要同步的群号")
 
     try:
-        max_changes = int(_cfg(plugin, "seat_rename_limit", DEFAULT_MAX_CHANGES))
+        max_changes = int(_cfg(plugin, "limit", DEFAULT_MAX_CHANGES))
     except (TypeError, ValueError):
         max_changes = DEFAULT_MAX_CHANGES
 
@@ -107,7 +101,7 @@ async def sync_group_cards(
         raise RuntimeError("没有可用的 aiocqhttp 平台实例，无法修改群名片")
 
     # 调试模式：只计算与记录，不实际调用改名接口
-    debug = bool(_cfg(plugin, "seat_rename_debug", False))
+    debug = bool(_cfg(plugin, "debug", False))
 
     try:
         members = await bot.call_action(
