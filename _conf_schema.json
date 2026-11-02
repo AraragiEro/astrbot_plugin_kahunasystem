@@ -43,6 +43,18 @@
     "default": [],
     "hint": "列表内的会话标识不做 VIP 判断，可用 /ssid 指令查看当前会话标识"
   },
+  "bank": {
+    "description": "成员银行账户",
+    "type": "object",
+    "items": {
+      "admin_qqs": {
+        "description": "管理员 QQ 白名单",
+        "type": "string",
+        "default": "",
+        "hint": "英文逗号分隔，例如 123456,654321。只有这些 QQ 能确认订单、发放津贴、执行 PAP 结算；成员查账户与下单不受限制"
+      }
+    }
+  },
   "seat": {
     "description": "SeAT 认证",
     "type": "object",

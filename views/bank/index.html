@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>成员银行</title>
+    <style>
+      :root {
+        --bg: #ffffff; --fg: #1f2328; --muted: #6b7280; --line: #d0d7de;
+        --panel: #f6f8fa; --accent: #2b6cb0; --ok: #2f855a;
+        --warn: #b7791f; --err: #c53030; --chip: rgba(127,127,127,.12);
+      }
+      html[data-theme="dark"] {
+        --bg: #16181d; --fg: #e6e8eb; --muted: #9aa4b2; --line: #30363d;
+        --panel: #1e2228; --accent: #5aa3e8; --ok: #68d391;
+        --warn: #f6c05c; --err: #fc8181; --chip: rgba(255,255,255,.08);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; padding: 18px; background: var(--bg); color: var(--fg);
+        font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+        font-size: 13px; line-height: 1.55;
+      }
+      .wrap { max-width: 1180px; margin: 0 auto; }
+      h1 { font-size: 17px; margin: 0 0 12px; }
+      h2 { font-size: 14px; margin: 0 0 10px; }
+      .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+      .tabs button {
+        padding: 7px 14px; border: 1px solid var(--line); border-radius: 8px;
+        background: var(--panel); color: var(--muted); cursor: pointer; font-size: 13px;
+      }
+      .tabs button.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+      .panel { display: none; }
+      .panel.active { display: block; }
+      .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+      .muted { color: var(--muted); }
+      .spacer { flex: 1; }
+      button.primary {
+        padding: 7px 16px; border: none; border-radius: 8px;
+        background: var(--accent); color: #fff; cursor: pointer; font-size: 13px;
+      }
+      button.primary:disabled { opacity: .55; cursor: not-allowed; }
+      button.ghost {
+        padding: 5px 11px; border: 1px solid var(--line); border-radius: 7px;
+        background: transparent; color: var(--fg); cursor: pointer; font-size: 12px;
+      }
+      button.danger { border-color: var(--err); color: var(--err); }
+      input, textarea {
+        padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px;
+        background: var(--panel); color: var(--fg); font-size: 13px; font-family: inherit;
+      }
+      input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+      input.num { width: 130px; text-align: right; font-variant-numeric: tabular-nums; }
+      textarea { width: 100%; min-height: 220px; resize: vertical;
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; }
+      .table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 9px; }
+      table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+      th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+      th { background: var(--panel); color: var(--muted); font-weight: 600; position: sticky; top: 0; }
+      tr:last-child td { border-bottom: none; }
+      td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+      .chip {
+        display: inline-block; padding: 1px 7px; border-radius: 999px;
+        background: var(--chip); font-size: 11.5px;
+      }
+      .chip.ok { color: var(--ok); }
+      .chip.warn { color: var(--warn); }
+      .chip.err { color: var(--err); }
+      .msg { margin-top: 10px; font-size: 12.5px; min-height: 18px; }
+      .msg.ok { color: var(--ok); }
+      .msg.err { color: var(--err); }
+      .cards { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+      .card {
+        flex: 1 1 150px; padding: 10px 12px; border: 1px solid var(--line);
+        border-radius: 9px; background: var(--panel);
+      }
+      .card .k { color: var(--muted); font-size: 11.5px; }
+      .card .v { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+      .row-actions { display: flex; gap: 6px; }
+      .empty { padding: 22px; text-align: center; color: var(--muted); }
+      details.result { margin-top: 10px; border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; }
+      details.result summary { cursor: pointer; color: var(--muted); }
+      ul.list { margin: 8px 0 0; padding-left: 18px; }
+      ul.list li { margin: 2px 0; }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <h1>成员银行</h1>
+
+      <nav class="tabs" id="tabs">
+        <button data-tab="accounts" class="active">账户</button>
+        <button data-tab="orders">待处理订单</button>
+        <button data-tab="import">历史导入</button>
+        <button data-tab="settle">PAP 结算</button>
+      </nav>
+
+      <!-- 账户 -->
+      <section class="panel active" id="tab-accounts">
+        <div class="toolbar">
+          <button class="primary" id="accounts-refresh">刷新</button>
+          <input id="accounts-filter" type="text" placeholder="筛选角色名 / QQ" style="flex:1;max-width:260px" />
+          <span class="spacer"></span>
+          <span class="muted" id="accounts-summary"></span>
+        </div>
+        <div class="cards" id="accounts-cards"></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>角色</th><th>QQ</th>
+                <th class="num">余额</th><th class="num">津贴</th>
+                <th class="num">当月奖励</th><th class="num">合计</th>
+                <th>状态</th><th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="accounts-body">
+              <tr><td colspan="8" class="empty">加载中…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="msg" id="accounts-msg"></div>
+      </section>
+
+      <!-- 订单 -->
+      <section class="panel" id="tab-orders">
+        <div class="toolbar">
+          <button class="primary" id="orders-refresh">刷新</button>
+          <span class="muted">确认时填写额度（单位 ISK，例如 15 亿 = 1500000000）</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>订单号</th><th>角色</th><th>QQ</th><th>物品</th>
+                <th class="num">数量</th><th>提交时间</th><th>额度 / 操作</th>
+              </tr>
+            </thead>
+            <tbody id="orders-body">
+              <tr><td colspan="7" class="empty">加载中…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="msg" id="orders-msg"></div>
+      </section>
+
+      <!-- 导入 -->
+      <section class="panel" id="tab-import">
+        <div class="toolbar">
+          <input id="import-period" type="text" placeholder="结算期间 YYYY-MM" value="" style="width:170px" />
+          <button class="primary" id="import-preview">解析预览</button>
+          <button class="primary" id="import-apply" disabled>确认导入</button>
+          <span class="muted">制表符分隔；列序：角色名 / 次月结余 / 本月额度 / 特别津贴 / 结余</span>
+        </div>
+        <textarea id="import-text" spellcheck="false" placeholder="把表格整段粘进来（每行用 Tab 分隔）"></textarea>
+        <div class="msg" id="import-msg"></div>
+        <div id="import-result"></div>
+      </section>
+
+      <!-- 结算 -->
+      <section class="panel" id="tab-settle">
+        <div class="toolbar">
+          <input id="settle-period" type="text" placeholder="PAP 月份 YYYY-MM" style="width:170px" />
+          <button class="primary" id="settle-preview">预览（不动账）</button>
+          <button class="primary" id="settle-apply">执行发放</button>
+          <span class="muted">执行前请先预览核对</span>
+        </div>
+        <div class="msg" id="settle-msg"></div>
+        <div id="settle-result"></div>
+      </section>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
