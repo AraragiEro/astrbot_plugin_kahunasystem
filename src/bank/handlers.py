@@ -223,11 +223,18 @@ def set_allowance(
 def preview_settlement(
     conn: sqlite3.Connection, period: str, rows: list[dict]
 ) -> dict:
-    """结算预览（dry-run，不落库）。"""
+    """结算预览（dry-run，不落库）。
+
+    同时报告该期间流水里是否已有发放记录——预览看到的数字不会重复入账，
+    真正执行时已发过的成员会被幂等键跳过。
+    """
     try:
         report = service.preview_settlement(conn, period, rows)
     except ValueError as exc:
         return {"ok": False, "message": str(exc)}
+
+    already = bankdb.sum_ledger_by_period(conn, report.period, kind="reward")
+    period_all = bankdb.sum_ledger_by_period(conn, report.period)
     return {
         "ok": True,
         "period": report.period,
@@ -243,6 +250,64 @@ def preview_settlement(
             for g in report.granted
         ],
         "skipped_count": len(report.skipped),
+        # 流水里已存在的记录（判断这个月是否已经发过）
+        "already_reward_count": already["count"],
+        "already_reward_text": fmt_isk(already["amount"]),
+        "period_ledger_count": period_all["count"],
+        "period_ledger_text": fmt_isk(period_all["amount"]),
+    }
+
+
+KIND_LABELS = {
+    "reward": "发放奖励",
+    "allowance": "额外津贴",
+    "consume": "消费扣款",
+    "carry": "月末结转",
+    "wasted": "超限作废",
+    "adjust": "人工调整",
+    "import": "历史导入",
+}
+
+
+def ledger_entries(
+    conn: sqlite3.Connection,
+    qq_id: str = "",
+    period: str = "",
+    kind: str = "",
+    keyword: str = "",
+    limit: int = 200,
+) -> dict:
+    """流水浏览：按成员 / 期间 / 类型 / 关键字筛选。"""
+    rows = bankdb.list_ledger_detail(
+        conn,
+        qq_id=str(qq_id or "").strip() or None,
+        period=str(period or "").strip() or None,
+        kind=str(kind or "").strip() or None,
+        keyword=str(keyword or "").strip() or None,
+        limit=int(limit or 200),
+    )
+    return {
+        "ok": True,
+        "count": len(rows),
+        "entries": [
+            {
+                "id": r["id"],
+                "qq_id": r["qq_id"],
+                "character": r["character"],
+                "period": r["period"],
+                "kind": r["kind"],
+                "kind_label": KIND_LABELS.get(r["kind"], r["kind"]),
+                "amount_text": fmt_isk(r["amount"]),
+                "amount": r["amount"],
+                "balance_text": fmt_isk(r["balance_after"]),
+                "allowance_text": fmt_isk(r["allowance_after"]),
+                "note": r["note"],
+                "operator": r["operator"],
+                "order_id": r["order_id"],
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ],
     }
 
 

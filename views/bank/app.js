@@ -102,6 +102,8 @@ function renderAccounts() {
           a.status === "unclaimed" ? "待认领" : "正常"}</span></td>
         <td>
           <div class="row-actions">
+            <button class="ghost" data-act="ledger" data-qq="${escapeHtml(a.qq_id)}"
+                    data-name="${escapeHtml(a.character)}">流水</button>
             <button class="ghost" data-act="allowance" data-qq="${escapeHtml(a.qq_id)}"
                     data-name="${escapeHtml(a.character)}">发津贴</button>
             <button class="ghost" data-act="adjust" data-qq="${escapeHtml(a.qq_id)}"
@@ -146,6 +148,14 @@ async function onAccountAction(event) {
   const btn = event.target.closest("button[data-act]");
   if (!btn) return;
   const { act, qq, name } = btn.dataset;
+  if (act === "ledger") {
+    switchTab("ledger");
+    document.getElementById("ledger-keyword").value = qq;
+    document.getElementById("ledger-period").value = "";
+    document.getElementById("ledger-kind").value = "";
+    loadLedger();
+    return;
+  }
   if (act === "allowance") {
     const raw = prompt(`给 ${name}（${qq}）发放额外津贴，额度：\n支持 1.5b / 5e / 1500000000`);
     const amount = parseIsk(raw);
@@ -311,12 +321,17 @@ async function onImportApply() {
 
 function renderSettle(data, applied) {
   const parts = [];
+  const alreadyCount = data.already_reward_count ?? 0;
   parts.push(`<div class="cards">
     <div class="card"><div class="k">${applied ? "已发放" : "将发放"}人数</div><div class="v">${data.granted_count}</div></div>
     <div class="card"><div class="k">${applied ? "已发放" : "将发放"}合计</div><div class="v">${escapeHtml(data.total_reward_text)}</div></div>
     <div class="card"><div class="k">作废（超 2b）</div><div class="v">${escapeHtml(data.total_wasted_text)}</div></div>
     <div class="card"><div class="k">跳过</div><div class="v">${data.skipped_count ?? "—"}</div></div>
+    <div class="card"><div class="k">流水已发放</div><div class="v">${alreadyCount} <span class="muted" style="font-size:12px">人</span></div><div class="k">${escapeHtml(data.already_reward_text || "0")}</div></div>
   </div>`);
+  if (!applied && alreadyCount > 0) {
+    parts.push(`<div class="msg" style="color:var(--warn)">该期间流水里已有 ${alreadyCount} 条发放记录（${escapeHtml(data.already_reward_text)}）。重复执行只会补齐缺失成员、不会重复发钱；若 PAP 数据被修正，需先冲正再重算。</div>`);
+  }
   if (data.granted && data.granted.length) {
     parts.push(`<details class="result" open><summary>发放明细（${data.granted.length}）</summary><div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>角色</th><th class="num">Start PAP</th><th class="num">奖励</th></tr></thead><tbody>`
       + data.granted.map((g) => `<tr><td>${escapeHtml(g.character)}</td><td class="num">${g.strat_pap}</td><td class="num">${escapeHtml(g.reward_text)}</td></tr>`).join("")
@@ -356,18 +371,72 @@ async function onSettleApply() {
   }
 }
 
+// ---------------- 流水 ----------------
+
+function fmtIskShort(v) {
+  const a = Math.abs(v);
+  const sign = v < 0 ? "-" : "";
+  if (a >= 1e9) return sign + (a / 1e9).toFixed(2) + "b";
+  if (a >= 1e8) return sign + (a / 1e8).toFixed(2) + "e";
+  if (a >= 1e6) return sign + (a / 1e6).toFixed(2) + "m";
+  return sign + a;
+}
+
+function renderLedger(data) {
+  const list = data.entries || [];
+  const body = document.getElementById("ledger-body");
+  if (!list.length) {
+    body.innerHTML = `<tr><td colspan="9" class="empty">没有匹配的流水</td></tr>`;
+  } else {
+    body.innerHTML = list.map((e) => `
+      <tr>
+        <td class="muted">${escapeHtml(e.created_at)}</td>
+        <td>${escapeHtml(e.character) || "<span class='muted'>—</span>"}</td>
+        <td class="muted">${escapeHtml(e.qq_id)}</td>
+        <td><span class="chip">${escapeHtml(e.kind_label)}</span></td>
+        <td class="num" style="color:${e.amount < 0 ? "var(--err)" : "var(--ok)"}">${escapeHtml(e.amount_text)}</td>
+        <td class="num">${escapeHtml(e.balance_text)}</td>
+        <td class="num">${escapeHtml(e.allowance_text)}</td>
+        <td>${escapeHtml(e.note)}${e.order_id ? ` <span class="muted">#${e.order_id}</span>` : ""}</td>
+        <td class="muted">${escapeHtml(e.operator)}</td>
+      </tr>`).join("");
+  }
+  const income = list.filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0);
+  const expense = list.filter((e) => e.amount < 0).reduce((s, e) => s - e.amount, 0);
+  document.getElementById("ledger-summary").textContent =
+    `共 ${list.length} 条 ｜ 收入 ${fmtIskShort(income)} ｜ 支出 ${fmtIskShort(expense)}`;
+}
+
+async function loadLedger() {
+  msg("ledger-msg", "加载中…");
+  try {
+    const data = await api("ledger", {
+      keyword: document.getElementById("ledger-keyword").value.trim(),
+      period: document.getElementById("ledger-period").value.trim(),
+      kind: document.getElementById("ledger-kind").value,
+    });
+    renderLedger(data);
+    msg("ledger-msg", "");
+  } catch (err) {
+    msg("ledger-msg", "加载失败：" + err.message, "err");
+  }
+}
+
+function switchTab(name) {
+  document.querySelectorAll("#tabs button").forEach((b) =>
+    b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelectorAll(".panel").forEach((p) =>
+    p.classList.toggle("active", p.id === `tab-${name}`));
+  if (name === "accounts") loadAccounts();
+  if (name === "ledger") loadLedger();
+  if (name === "orders") loadOrders();
+}
+
 // ---------------- 初始化 ----------------
 
 function initTabs() {
   document.querySelectorAll("#tabs button").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll("#tabs button").forEach((b) =>
-        b.classList.toggle("active", b === btn));
-      document.querySelectorAll(".panel").forEach((p) =>
-        p.classList.toggle("active", p.id === `tab-${btn.dataset.tab}`));
-      if (btn.dataset.tab === "accounts") loadAccounts();
-      if (btn.dataset.tab === "orders") loadOrders();
-    });
+    btn.addEventListener("click", () => switchTab(btn.dataset.tab));
   });
 }
 
@@ -380,6 +449,19 @@ function init() {
 
   document.getElementById("orders-refresh").addEventListener("click", loadOrders);
   document.getElementById("orders-body").addEventListener("click", onOrderAction);
+
+  document.getElementById("ledger-refresh").addEventListener("click", loadLedger);
+  document.getElementById("ledger-kind").addEventListener("change", loadLedger);
+  document.getElementById("ledger-period").addEventListener("change", loadLedger);
+  document.getElementById("ledger-keyword").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") loadLedger();
+  });
+  document.getElementById("ledger-clear").addEventListener("click", () => {
+    document.getElementById("ledger-keyword").value = "";
+    document.getElementById("ledger-period").value = "";
+    document.getElementById("ledger-kind").value = "";
+    loadLedger();
+  });
 
   document.getElementById("import-preview").addEventListener("click", onImportPreview);
   document.getElementById("import-apply").addEventListener("click", onImportApply);

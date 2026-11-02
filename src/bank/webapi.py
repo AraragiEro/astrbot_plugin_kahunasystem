@@ -62,6 +62,15 @@ async def dispatch(plugin, action: str, payload: dict) -> dict:
     if action == "accounts":
         return await rt.run(bank_handlers.accounts_table)
 
+    if action == "ledger":
+        return await rt.run(
+            bank_handlers.ledger_entries,
+            str(payload.get("qq_id") or ""),
+            str(payload.get("period") or ""),
+            str(payload.get("kind") or ""),
+            str(payload.get("keyword") or ""),
+            int(payload.get("limit") or 200))
+
     if action == "orders":
         return await rt.run(
             bank_handlers.pending_orders, str(payload.get("status") or "pending"))

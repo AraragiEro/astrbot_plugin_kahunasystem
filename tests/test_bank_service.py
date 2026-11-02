@@ -12,7 +12,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.bank import db as bankdb  # noqa: E402
-from src.bank import parsing, service  # noqa: E402
+from src.bank import handlers, parsing, service  # noqa: E402
 from src.bank.settlement import BALANCE_CAP, Account  # noqa: E402
 
 E = 100_000_000
@@ -255,6 +255,78 @@ class OrderFlowTests(unittest.TestCase):
         self.assertIsNotNone(summary)
         self.assertEqual(summary["total"], B + 200_000_000 + E)
         self.assertIsNone(service.member_summary(self.conn, "nobody"))
+
+
+class LedgerBrowseTests(unittest.TestCase):
+    """流水浏览与结算预览的「是否已发放」标记。"""
+
+    ROWS = [
+        {"character": "Top", "qq_id": "1", "strat_pap_count": 18},
+        {"character": "Mid", "qq_id": "2", "strat_pap_count": 9},
+    ]
+
+    def setUp(self):
+        self.conn = sqlite3.connect(":memory:")
+        self.conn.row_factory = sqlite3.Row
+        bankdb.init_schema(self.conn)
+        bankdb.upsert_account(self.conn, Account(
+            qq_id="1", character="Top", balance=E))
+        bankdb.upsert_account(self.conn, Account(
+            qq_id="2", character="Mid", balance=2 * E))
+        bankdb.append_ledger(
+            self.conn, qq_id="1", kind="reward", amount=E,
+            balance_after=E, allowance_after=0, period="2026-10",
+            operator="system", idempotency_key="reward:2026-10:1",
+            note="发放")
+        bankdb.append_ledger(
+            self.conn, qq_id="1", kind="consume", amount=-E // 2,
+            balance_after=E // 2, allowance_after=0, period="2026-10",
+            operator="admin", idempotency_key="consume:99",
+            note="三钛合金 x10", order_id=99)
+
+    def tearDown(self):
+        self.conn.close()
+
+    def test_lists_newest_first_with_character(self):
+        data = handlers.ledger_entries(self.conn)
+        self.assertEqual(data["count"], 2)
+        self.assertEqual(data["entries"][0]["kind"], "consume")  # id DESC
+        self.assertEqual(data["entries"][0]["character"], "Top")
+        self.assertEqual(data["entries"][0]["kind_label"], "消费扣款")
+        self.assertEqual(data["entries"][0]["order_id"], 99)
+        self.assertEqual(data["entries"][1]["kind_label"], "发放奖励")
+
+    def test_filter_by_kind(self):
+        data = handlers.ledger_entries(self.conn, kind="reward")
+        self.assertEqual(data["count"], 1)
+        self.assertEqual(data["entries"][0]["qq_id"], "1")
+
+    def test_filter_by_keyword_matches_character_and_note(self):
+        self.assertEqual(handlers.ledger_entries(self.conn, keyword="Top")["count"], 2)
+        self.assertEqual(handlers.ledger_entries(self.conn, keyword="三钛")["count"], 1)
+        self.assertEqual(handlers.ledger_entries(self.conn, keyword="nobody")["count"], 0)
+
+    def test_filter_by_period(self):
+        self.assertEqual(handlers.ledger_entries(self.conn, period="2026-10")["count"], 2)
+        self.assertEqual(handlers.ledger_entries(self.conn, period="2026-09")["count"], 0)
+
+    def test_preview_reports_existing_rewards(self):
+        # setUp 里已有一条 2026-10 的 reward（qq=1），预览必须如实报告
+        before = handlers.preview_settlement(self.conn, "2026-10", self.ROWS)
+        self.assertEqual(before["already_reward_count"], 1)
+        self.assertEqual(before["period_ledger_count"], 2)
+
+        # 再执行一次：qq=1 被幂等键跳过，只补发 qq=2
+        service.apply_settlement(self.conn, "2026-10", self.ROWS)
+
+        after = handlers.preview_settlement(self.conn, "2026-10", self.ROWS)
+        self.assertEqual(after["already_reward_count"], 2)  # 原有 1 + 补发 1
+        # qq=1 的发放流水没有被重复写入
+        rewards = [
+            r for r in bankdb.list_ledger(self.conn, qq_id="1", period="2026-10")
+            if r["kind"] == "reward"
+        ]
+        self.assertEqual(len(rewards), 1)
 
 
 if __name__ == "__main__":

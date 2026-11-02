@@ -279,6 +279,52 @@ def list_ledger(
     return conn.execute(sql, args).fetchall()
 
 
+def list_ledger_detail(
+    conn: sqlite3.Connection,
+    qq_id: str | None = None,
+    period: str | None = None,
+    kind: str | None = None,
+    keyword: str | None = None,
+    limit: int = 200,
+) -> list[sqlite3.Row]:
+    """流水浏览：左连账户表带出角色名，可按成员/期间/类型/关键字筛选。"""
+    sql = (
+        "SELECT l.*, COALESCE(a.character, '') AS character "
+        "FROM ledger l LEFT JOIN member_account a ON a.qq_id = l.qq_id "
+        "WHERE 1=1"
+    )
+    args: list = []
+    if qq_id:
+        sql += " AND l.qq_id = ?"
+        args.append(str(qq_id))
+    if period:
+        sql += " AND l.period = ?"
+        args.append(period)
+    if kind:
+        sql += " AND l.kind = ?"
+        args.append(kind)
+    if keyword:
+        text = f"%{keyword}%"
+        sql += " AND (l.qq_id LIKE ? OR a.character LIKE ? OR l.note LIKE ?)"
+        args.extend([text, text, text])
+    sql += " ORDER BY l.id DESC LIMIT ?"
+    args.append(int(limit))
+    return conn.execute(sql, args).fetchall()
+
+
+def sum_ledger_by_period(
+    conn: sqlite3.Connection, period: str, kind: str | None = None
+) -> dict:
+    """统计某期间已记账的条数与金额合计（结算预览用来看是否已经发过）。"""
+    sql = "SELECT COUNT(*) AS c, COALESCE(SUM(amount), 0) AS s FROM ledger WHERE period = ?"
+    args: list = [period]
+    if kind:
+        sql += " AND kind = ?"
+        args.append(kind)
+    row = conn.execute(sql, args).fetchone()
+    return {"count": int(row["c"]), "amount": int(row["s"])}
+
+
 def recalculate_balance(conn: sqlite3.Connection, qq_id: str) -> dict:
     """从流水重算账户余额，用于对账。
 
