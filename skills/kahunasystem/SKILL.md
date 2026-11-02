@@ -33,6 +33,7 @@ description: 当用户需要查询 EVE Online 物品价格、计算制造成本�
 | `running_jobs_overview` | 运行中的制造/反应任务概览 | `qq` |
 | `price_estimate` | 粘贴 EVE 文本自动估价 | `text`, `coefficient`, `auto_calculate_cost` |
 | `qq_vip_state` | 用户 VIP 状态 | `qq` |
+| `angel_recall` | 知识库与记忆库检索 | — |
 
 # 场景路由
 
