@@ -1,3 +1,5 @@
+import asyncio
+
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
@@ -8,6 +10,8 @@ from .src.api_client import set_service_api_key
 from .src.identity import IdentityStore, set_identity_store
 from .src.picture_render_server.picture_render import set_t2i_renderer
 from .src.seat_auth import PLUGIN_NAME as SEAT_PLUGIN_NAME, handle_validate_request
+from .src.seat_roster import refresh_roster
+from .src.seat_rename import configured_group_ids, sync_all_groups
 
 
 @register(
@@ -71,7 +75,20 @@ class MyPlugin(Star):
         )
 
     async def initialize(self):
-        """可选的异步初始化方法。"""
+        """插件加载后启动 SeAT 名单的每小时刷新任务。"""
+        self._seat_task = asyncio.create_task(self._seat_roster_loop())
+
+    async def _seat_roster_loop(self):
+        """每小时刷新一次公司成员 QQ 名单，并按需同步群名片。"""
+        while True:
+            try:
+                await refresh_roster(self)
+                enabled = bool(self.config.get("seat_rename_enabled", True))
+                if enabled and configured_group_ids(self):
+                    await sync_all_groups(self)
+            except Exception as exc:
+                logger.warning(f"SeAT 名单/名片同步失败：{exc}")
+            await asyncio.sleep(3600)
 
     @filter.command("helloworld")
     async def helloworld(self, event: AstrMessageEvent):
@@ -142,9 +159,47 @@ class MyPlugin(Star):
     async def ssid(self, event: AstrMessageEvent):
         yield event.plain_result(f"你的 session id 是: {event.get_session_id()}")
 
+    @filter.command("seat刷新", alias={"刷新QQ", "seatrefresh"})
+    async def seat_refresh(self, event: AstrMessageEvent):
+        """立即刷新公司成员 QQ 名单。"""
+        try:
+            data = await refresh_roster(self)
+        except Exception as exc:
+            yield event.plain_result(f"刷新失败：{exc}")
+            return
+        missing = data["total"] - data["with_qq"]
+        yield event.plain_result(
+            f"SeAT 名单已刷新：共 {data['total']} 人，"
+            f"{data['with_qq']} 人填了 QQ，{missing} 人未填。"
+        )
+
+    @filter.command("seat改名", alias={"同步名片", "seatrename"})
+    async def seat_rename(self, event: AstrMessageEvent):
+        """立即按名单同步一次群名片。"""
+        try:
+            results = await sync_all_groups(self)
+        except Exception as exc:
+            yield event.plain_result(f"同步失败：{exc}")
+            return
+        totals = {
+            key: sum(item.get(key, 0) for item in results)
+            for key in ("checked", "matched", "changed", "planned", "failed", "limited")
+        }
+        debug_mode = any(item.get("debug") for item in results)
+        prefix = "（调试模式，未实际改名）" if debug_mode else ""
+        yield event.plain_result(
+            f"群名片同步完成{prefix}（{len(results)} 个群）：检查 {totals['checked']} 人，"
+            f"已符合 {totals['matched']}，改名 {totals['changed']}，"
+            f"预计改名 {totals['planned']}，失败 {totals['failed']}，"
+            f"因限额跳过 {totals['limited']}。"
+        )
+
     async def seat_validate(self):
         """可视化视图「验证并保存」的后端入口（见 views/seat-auth/）。"""
         return await handle_validate_request(self)
 
     async def terminate(self):
-        """可选的异步销毁方法。"""
+        """卸载插件时取消后台刷新任务。"""
+        task = getattr(self, "_seat_task", None)
+        if task is not None and not task.done():
+            task.cancel()

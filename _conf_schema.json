@@ -48,5 +48,29 @@
     "type": "string",
     "default": "/tools/paptracking",
     "hint": "校验 Cookie 时请求的页面路径；后续抓取也会复用"
+  },
+  "seat_rename_enabled": {
+    "description": "自动同步群名片",
+    "type": "bool",
+    "default": true,
+    "hint": "每小时刷新名单后，把群名片改成 SETCR-昵称/角色名；需要 aiocqhttp/NapCat 且 bot 是群管理员"
+  },
+  "seat_rename_group_ids": {
+    "description": "群名片白名单（群号列表）",
+    "type": "list",
+    "default": [],
+    "hint": "只对列表里的群同步名片，例如 [\"577166101\"]；留空则不同步"
+  },
+  "seat_rename_limit": {
+    "description": "单轮最多改几个",
+    "type": "int",
+    "default": 20,
+    "hint": "防止一次改太多触发腾讯风控，超出的下一轮继续"
+  },
+  "seat_rename_debug": {
+    "description": "调试模式（只记录不改名）",
+    "type": "bool",
+    "default": false,
+    "hint": "开启「自动同步群名片」后，若同时开启此开关，只打印日志与预计改名，不实际修改群名片"
   }
 }
