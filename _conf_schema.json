@@ -98,9 +98,9 @@
     "hint": "踢人间隔 8~15 秒，超出的下一轮继续"
   },
   "seat_kick_qq_whitelist": {
-    "description": "踢人 QQ 白名单",
-    "type": "list",
-    "default": [],
-    "hint": "列出的 QQ 即使不在 SeAT 名单里也不会被踢，例如 [\"123456789\"]"
+    "description": "踢人 QQ 白名单（一行一个）",
+    "type": "text",
+    "default": "",
+    "hint": "每行一个 QQ 号；列出的 QQ 即使不在 SeAT 名单里也不会被踢"
   }
 }

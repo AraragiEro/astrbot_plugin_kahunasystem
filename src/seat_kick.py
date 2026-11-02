@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import random
+import re
 from datetime import datetime
 
 from astrbot.api import logger
@@ -56,13 +57,18 @@ def configured_kick_group_ids(plugin) -> list[str]:
 
 
 def configured_qq_whitelist(plugin) -> set[str]:
-    """读取 QQ 白名单：这些号即使不在 SeAT 名单里也不会被踢。"""
-    raw = _cfg(plugin, "seat_kick_qq_whitelist", [])
+    """读取 QQ 白名单：这些号即使不在 SeAT 名单里也不会被踢。
+
+    配置是多行文本（一行一个 QQ），也兼容逗号/空格分隔和旧的 list 形式。
+    """
+    raw = _cfg(plugin, "seat_kick_qq_whitelist", "")
     if isinstance(raw, str):
-        return {part.strip() for part in raw.split(",") if part.strip()}
-    if isinstance(raw, (list, tuple)):
-        return {str(part).strip() for part in raw if str(part).strip()}
-    return set()
+        parts = re.split(r"[\s,，]+", raw)
+    elif isinstance(raw, (list, tuple)):
+        parts = [str(item) for item in raw]
+    else:
+        parts = []
+    return {part.strip() for part in parts if part.strip()}
 
 
 async def kick_outside_roster(plugin, roster: dict | None = None, group_id: str = "") -> dict:
@@ -176,11 +182,12 @@ async def kick_outside_roster(plugin, roster: dict | None = None, group_id: str 
     await plugin.put_kv_data(KICK_RESULT_KEY, stats)
 
     if debug:
-        # 预计踢出的名单：先给可直接粘贴的 QQ 数组，再给 QQ -> 名字 的对照
+        # 预计踢出的名单：QQ 一行一个（可直接粘贴到白名单），再给 QQ -> 名字 的对照
         removed = stats["removed"]
+        removed_qqs = [item.get("qq", "") for item in removed]
         logger.info(
-            "SeAT 调试：预计踢出 QQ 列表（可直接粘贴到 seat_kick_qq_whitelist）：%s",
-            json.dumps([item.get("qq", "") for item in removed], ensure_ascii=False),
+            "SeAT 调试：预计踢出 QQ（一行一个，可直接粘贴到 seat_kick_qq_whitelist）：\n%s",
+            "\n".join(removed_qqs) or "(无)",
         )
         logger.info(
             "SeAT 调试：预计踢出 QQ -> 名字：%s",
