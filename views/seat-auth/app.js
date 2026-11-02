@@ -1,10 +1,10 @@
 /**
  * SeAT 授权视图的交互逻辑。
  *
- * AstrBot 会在页面里注入 bridge SDK（`/api/plugin/page/bridge-sdk.js`），
- * 通过 `window.AstrBotPluginView` 与本插件后端通信：
- *   bridge.apiPost("seat/validate", { cookie })
- * 会被 Dashboard 转发到
+ * 用户在两个输入框里分别粘贴 seat_session 的值与完整的 remember_web_* 条目，
+ * 前端拼成 `name=value; name2=value2` 后用 bridge 交给插件后端校验。
+ *
+ * bridge.apiPost("seat/validate", { cookie }) 会被 Dashboard 转发到
  *   POST /api/v1/plugins/extensions/<插件名>/seat/validate
  */
 
@@ -17,7 +17,8 @@ const STATUS_LABELS = {
   error: "验证失败",
 };
 
-const cookieInput = document.getElementById("cookie");
+const sessionInput = document.getElementById("session");
+const rememberInput = document.getElementById("remember");
 const button = document.getElementById("btn");
 const statusEl = document.getElementById("status");
 
@@ -44,10 +45,41 @@ function setStatus(kind, text) {
   statusEl.textContent = text || STATUS_LABELS[kind] || "";
 }
 
+/**
+ * 把两个输入框拼成 Cookie 字符串。
+ *
+ * - seat_session：允许只填值（自动补前缀），也允许贴完整的 `seat_session=...`；
+ * - remember_web_*：名字带随机 hash，无法替用户补全，必须粘贴完整的 `名字=值`。
+ */
+function buildCookie(sessionRaw, rememberRaw) {
+  const parts = [];
+  const session = (sessionRaw || "").trim();
+  const remember = (rememberRaw || "").trim();
+
+  if (session) {
+    parts.push(session.includes("=") ? session : `seat_session=${session}`);
+  }
+
+  if (remember) {
+    if (!remember.includes("=")) {
+      return {
+        error: "「remember_web_*」要粘贴完整的 名字=值（例如 remember_web_xxx=xxxx）",
+      };
+    }
+    parts.push(remember);
+  }
+
+  return { cookie: parts.join("; ") };
+}
+
 async function onSubmit() {
-  const cookie = cookieInput.value.trim();
+  const { cookie, error } = buildCookie(sessionInput.value, rememberInput.value);
+  if (error) {
+    setStatus("error", error);
+    return;
+  }
   if (!cookie) {
-    setStatus("error", "请先粘贴 Cookie");
+    setStatus("error", "至少填写一项");
     return;
   }
 
@@ -60,8 +92,8 @@ async function onSubmit() {
     const result = await bridge.apiPost("seat/validate", { cookie });
     const kind = result?.status || "error";
     setStatus(kind, result?.message || STATUS_LABELS[kind] || "未知结果");
-  } catch (error) {
-    setStatus("error", "请求失败：" + (error?.message || error));
+  } catch (err) {
+    setStatus("error", "请求失败：" + (err?.message || err));
   } finally {
     button.disabled = false;
   }

@@ -39,12 +39,18 @@
       }
       .wrap { max-width: 760px; margin: 0 auto; }
       h1 { font-size: 18px; margin: 0 0 8px; }
-      .hint { color: var(--muted); margin: 0 0 14px; }
-      textarea {
+      .hint { color: var(--muted); margin: 0 0 16px; }
+      .field { display: block; margin-bottom: 14px; }
+      .field .label {
+        display: block;
+        margin-bottom: 5px;
+        font-size: 13px;
+        color: var(--muted);
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      }
+      .field input {
         width: 100%;
-        min-height: 128px;
-        resize: vertical;
-        padding: 10px 12px;
+        padding: 9px 12px;
         border: 1px solid var(--line);
         border-radius: 8px;
         background: var(--panel);
@@ -52,12 +58,12 @@
         font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
         font-size: 13px;
       }
-      textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+      .field input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
       .actions {
         display: flex;
         align-items: center;
         gap: 12px;
-        margin-top: 12px;
+        margin-top: 6px;
         flex-wrap: wrap;
       }
       button {
@@ -96,16 +102,30 @@
     <main class="wrap">
       <h1>SeAT 登录态</h1>
       <p class="hint">
-        在浏览器登录 <code>seat.winterco.org</code> 后，把
-        <code>seat_session</code> 与 <code>remember_web_*</code> 拼成
-        <code>name=value; name2=value2</code> 粘贴到下面，点「验证并保存」。
+        登录 SeAT 后，把下面两项分别粘贴进来，点「验证并保存」即可，Cookie 由插件自动拼好。
       </p>
 
-      <textarea
-        id="cookie"
-        spellcheck="false"
-        placeholder="seat_session=...; remember_web_...=..."
-      ></textarea>
+      <label class="field">
+        <span class="label">seat_session</span>
+        <input
+          id="session"
+          type="text"
+          spellcheck="false"
+          autocomplete="off"
+          placeholder="粘贴 seat_session 的值"
+        />
+      </label>
+
+      <label class="field">
+        <span class="label">remember_web_*</span>
+        <input
+          id="remember"
+          type="text"
+          spellcheck="false"
+          autocomplete="off"
+          placeholder="粘贴完整的 remember_web_xxx=值"
+        />
+      </label>
 
       <div class="actions">
         <button id="btn" type="button">验证并保存</button>
@@ -117,8 +137,8 @@
         <ol>
           <li>浏览器登录 SeAT（EVE SSO），进入 PAP 页面。</li>
           <li>按 F12 打开开发者工具，切到 Application（应用）→ Cookies → 站点域名。</li>
-          <li>复制 <code>seat_session</code> 和以 <code>remember_web_</code> 开头的条目。</li>
-          <li>按 <code>名字=值; 名字=值</code> 的格式粘贴到上面，点验证。</li>
+          <li>把 <code>seat_session</code> 的值填到第一个框（只填值即可）。</li>
+          <li>把 <code>remember_web_</code> 开头的条目整条（<code>名字=值</code>）填到第二个框。</li>
         </ol>
       </details>
     </main>
