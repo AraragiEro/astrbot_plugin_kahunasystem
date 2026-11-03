@@ -48,6 +48,7 @@ description: >
    每艘船有状态：已收录 / 草稿 / 未覆盖。
    - **未覆盖 → 必须明确说"本库未覆盖该船型"**；可以给通用分析，但必须标注为非库内结论。**不得凭常识编。**
    - 草稿 → 可答，附一句"该条目待人工确认"。
+   - **变体（Fleet Issue / Navy Issue / 势力版）与母船是两条船**：收了 `Hurricane` **不等于**收了 `Hurricane Fleet Issue`（type_id、槽位、硬点、加成全都不同）。库里只有母船时，**变体一律按未覆盖处理**，不得拿母船的配法套上去当库内结论。
 
 2. **按频次给，不按数量给**
    用户问"怎么配"时，从频次最高的配法开始，并给"如果你要 X 场景则换 Y"的分支。
@@ -68,6 +69,7 @@ description: >
 - **不要调工具。** 六维数值、配法频次、机制解释，库内都是现成的。
 - 每条配法给三层：**为什么有效 → 什么场景 → 什么情况下换成别的**。
 - 只有用户补充了**约束条件**（技能不到顶 / 预算 X / 对手是 Y）时，才需要现场验证。
+- **例外：库内没有这台船、配装是现场合成的时候不算"已有的配法"。** 此时按场景 4 声明未覆盖，并且**交付前至少过一次配装解析**——否则手上没有一份规范 EFT 文本，格式与弹药都会被自己写错（§十）。
 
 ### 场景 2：用户贴了一套配装问"行不行"
 
@@ -193,7 +195,53 @@ description: >
 
 ---
 
-## 十、一个完整示例的形态
+## 十、配装文本的输出格式（硬性）
+
+**交给用户的配装本体必须是严格 EFT，不是"看起来像配装"的摘要。** 装配件一行一件，数量由**重复行**表达。
+
+| 元素 | ✅ 正确 | ❌ 错误 |
+|---|---|---|
+| 装配件 | 同一行重复 N 次 | `720mm Howitzer Artillery II ×6`（EFT 没有这种语法） |
+| 弹药 | `模块, 弹药` 写在**同一行** | `模块, 弹药 ×6` —— 数量会被并进弹药名 |
+| 无人机 / 货舱 | `Acolyte II x5`（ASCII `x`，**只有这里**能用数量） | 把 `xN` / `×N` 套到装配件上 |
+
+```text
+[Hurricane Fleet Issue, 720mm 舰队散打 MWD]
+Damage Control II
+Gyrostabilizer II
+Gyrostabilizer II
+Reactor Control Unit II
+Tracking Enhancer II
+Tracking Enhancer II
+
+50MN Quad LiF Restrained Microwarpdrive
+Large Shield Extender II
+Multispectrum Shield Hardener II
+Warp Disruptor II
+
+720mm Howitzer Artillery II, Republic Fleet EMP M
+720mm Howitzer Artillery II, Republic Fleet EMP M
+720mm Howitzer Artillery II, Republic Fleet EMP M
+720mm Howitzer Artillery II, Republic Fleet EMP M
+720mm Howitzer Artillery II, Republic Fleet EMP M
+720mm Howitzer Artillery II, Republic Fleet EMP M
+
+Medium Core Defense Field Extender I
+Medium Core Defense Field Extender I
+Medium EM Shield Reinforcer II
+
+Acolyte II x5
+```
+
+**为什么这条是硬性的**（两条都是实测过的）：
+- 写成 `模块, 弹药 ×6`，解析器会把逗号后的**整串**当成弹药名（认成 `Republic Fleet EMP M  ×6`），直接报"认不出这个模块"。
+- 更糟的是把六门炮写成重复行、**却把弹药丢掉**：引擎**不报错**，按空炮算——同一套配装 DPS 从 **434 掉到 79**（只剩无人机），静默错 5 倍以上。
+
+**叙述与表格里可以继续用 `6×HAM II`、`3×BCU` 这类缩写**（那是给人读的摘要），但**任何会被贴回游戏或工具的配装块，必须严格按上表**。
+
+---
+
+## 十一、一个完整示例的形态
 
 **用户**："低安单挑，2000 万预算，Rifter 怎么配？"
 
