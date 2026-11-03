@@ -104,6 +104,7 @@ description: 当用户需要查询 EVE Online 物品价格、计算制造成本�
 
 # 配船
 - 加载NoobBaoziFit技能
+- 知识库使用(angel_recall)
 - 注意工具调用轮数限制为10次
 
 管理员另有 `bank_admin_*` 系列（待处理订单、确认扣款、驳回、账户总览）。
