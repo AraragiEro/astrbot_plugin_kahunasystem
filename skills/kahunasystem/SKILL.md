@@ -103,8 +103,7 @@ description: 当用户需要查询 EVE Online 物品价格、计算制造成本�
 | `bank_my_orders` | 查本人订单状态 |
 
 # 配船
-- 先搜索知识库(angel_recall)加载配船案例与原则经验
-- 使用工具进行模拟
+- 加载NoobBaoziFit技能
 - 注意工具调用轮数限制为10次
 
 管理员另有 `bank_admin_*` 系列（待处理订单、确认扣款、驳回、账户总览）。
